@@ -64,7 +64,8 @@ export function PanelField({ setup, publishButton = true }: Props & { publishBut
             ? {
                 label: published ? 'Volver a publicar' : 'Publicar panel',
                 onClick: () => publish.mutate(),
-                disabled: !setup.channelId || publish.isPending,
+                disabled: !setup.channelId,
+                loading: publish.isPending,
               }
             : undefined
         }

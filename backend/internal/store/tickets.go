@@ -137,3 +137,23 @@ func (s *Store) SaveTicketMessages(ctx context.Context, ticketID int64, msgs []T
 	}
 	return nil
 }
+
+// DeleteGuildData borra todo lo de un servidor: configuración, tickets y, en cascada,
+// sus transcripciones. No toca la fila de guilds ni la lista de servidores de los
+// usuarios: así, si algo falla después, la operación se puede repetir.
+func (s *Store) DeleteGuildData(ctx context.Context, guildID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// ticket_messages cae en cascada con tickets.
+	if _, err := tx.Exec(ctx, `DELETE FROM tickets WHERE guild_id = $1`, guildID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM ticket_settings WHERE guild_id = $1`, guildID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

@@ -27,3 +27,9 @@ export function guildIconUrl(guild: Guild): string | null {
   if (!guild.icon) return null
   return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`
 }
+
+// Quita el bot del servidor y borra todos sus datos (configuración, tickets y transcripciones).
+export async function removeGuild(guildId: string): Promise<void> {
+  const res = await fetch(`/api/guilds/${guildId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`DELETE guild falló: ${res.status}`)
+}

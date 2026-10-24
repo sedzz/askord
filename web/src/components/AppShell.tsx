@@ -57,7 +57,7 @@ export function AppShell({ activeGuildId, children }: Props) {
             <Button
               variant="outline"
               onClick={() => logoutMutation.mutate()}
-              disabled={logoutMutation.isPending}
+              loading={logoutMutation.isPending}
             >
               Salir
             </Button>

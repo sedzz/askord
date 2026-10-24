@@ -57,3 +57,42 @@ func (h *Handler) inviteURL(guildID string) string {
 	q.Set("disable_guild_select", "true")
 	return "https://discord.com/oauth2/authorize?" + q.Encode()
 }
+
+// RemoveGuild quita el bot del servidor y borra todos sus datos, transcripciones
+// incluidas. Es repetible: si el bot no llega a salir, se puede volver a intentar.
+func (h *Handler) RemoveGuild(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+
+	settings, err := h.store.GetTicketSettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de tickets", "guild", guildID, "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	// El panel publicado quedaría con botones muertos: se borra, si se puede.
+	if settings != nil && settings.PanelChannelID != "" && settings.PanelMessageID != "" {
+		if err := h.bot.DeleteMessage(settings.PanelChannelID, settings.PanelMessageID); err != nil {
+			slog.Warn("borrar panel", "guild", guildID, "err", err)
+		}
+	}
+
+	if err := h.store.DeleteGuildData(r.Context(), guildID); err != nil {
+		slog.Error("borrar datos del servidor", "guild", guildID, "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if err := h.bot.LeaveGuild(guildID); err != nil {
+		slog.Error("salir del servidor", "guild", guildID, "err", err)
+		http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+		return
+	}
+	if err := h.store.DeleteGuild(r.Context(), guildID); err != nil {
+		slog.Error("borrar servidor", "guild", guildID, "err", err)
+	}
+
+	slog.Info("bot eliminado del servidor desde la app", "guild", guildID, "by", auth.UserFrom(r.Context()).ID)
+	w.WriteHeader(http.StatusNoContent)
+}

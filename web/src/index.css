@@ -363,3 +363,28 @@ h2 {
 .preview {
   margin-top: 4px;
 }
+
+/* Zona de peligro al final de los ajustes del servidor. */
+.danger-zone {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding-top: 24px;
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.danger-zone h2 {
+  color: var(--danger);
+}
+
+.danger-zone p {
+  margin: 0;
+}
+
+/* Texto de carga con spinner. */
+.loading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

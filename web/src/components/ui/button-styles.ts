@@ -1,4 +1,4 @@
-export type ButtonVariant = 'primary' | 'outline'
+export type ButtonVariant = 'primary' | 'outline' | 'danger'
 
 // Clases del botón, para dárselas también a enlaces (<a>, <Link>) con el mismo aspecto.
 export function buttonClassName(variant: ButtonVariant = 'primary', className?: string): string {

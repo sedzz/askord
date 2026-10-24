@@ -140,7 +140,11 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
         {step === DONE ? (
           <Button onClick={() => onOpenChange(false)}>Terminar</Button>
         ) : (
-          <Button onClick={next} disabled={!canContinue}>
+          <Button
+            onClick={next}
+            disabled={!canContinue}
+            loading={save.isPending || setup.publish.isPending}
+          >
             {nextLabel}
           </Button>
         )}

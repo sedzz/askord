@@ -1,0 +1,19 @@
+.ui-spinner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  animation: ui-spin 0.7s linear infinite;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Quien prefiere menos movimiento ve el giro más lento, no una imagen parada. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner {
+    animation-duration: 2s;
+  }
+}

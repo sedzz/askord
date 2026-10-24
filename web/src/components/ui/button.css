@@ -20,7 +20,7 @@
 }
 
 /* Con un icono dentro, menos relleno lateral. */
-.ui-button:has(> svg) {
+.ui-button:has(> svg:not(.ui-spinner)) {
   padding-inline: 12px;
 }
 
@@ -63,4 +63,22 @@
 
 .ui-button--outline:hover {
   background: rgb(255 255 255 / 10%);
+}
+
+.ui-button--danger {
+  color: var(--accent-fg);
+  background: var(--danger);
+}
+
+.ui-button--danger:hover {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+}
+
+.ui-button--danger:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+/* Cargando: bloqueado, pero sin apagarse como un botón desactivado. */
+.ui-button[aria-busy='true']:disabled {
+  opacity: 0.8;
 }

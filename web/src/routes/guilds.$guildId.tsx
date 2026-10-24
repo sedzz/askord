@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { AppShell } from '../components/AppShell'
+import { RemoveBotDialog } from '../components/RemoveBotDialog'
 import { SetupTour } from '../components/SetupTour'
 import { CategoryField, PanelField, RoleField } from '../components/TicketFields'
 import { Button } from '../components/ui/Button'
@@ -42,6 +43,7 @@ function GuildSettings({ guildId }: { guildId: string }) {
   // Mientras falte algo (servidor nuevo o a medias), el tour se abre solo y no se puede
   // cerrar hasta terminarlo. Se decide al entrar: publicar el panel no lo cierra a mitad.
   const [tourOpen, setTourOpen] = useState(!config.settings?.panelChannelId)
+  const [removeOpen, setRemoveOpen] = useState(false)
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -60,9 +62,10 @@ function GuildSettings({ guildId }: { guildId: string }) {
         <div className="form-actions">
           <Button
             type="submit"
-            disabled={!setup.categoryId || !setup.staffRoleId || save.isPending}
+            disabled={!setup.categoryId || !setup.staffRoleId}
+            loading={save.isPending}
           >
-            Guardar
+            {save.isPending ? 'Guardando…' : 'Guardar'}
           </Button>
           {save.isSuccess && <span className="saved">Guardado</span>}
           {save.isError && <span className="error">No se pudo guardar</span>}
@@ -77,6 +80,15 @@ function GuildSettings({ guildId }: { guildId: string }) {
         <p className="hint">Guarda los pasos 1 y 2 para poder publicar el panel (paso 3).</p>
       )}
 
+      <section className="danger-zone">
+        <h2>Zona de peligro</h2>
+        <p>Quita el bot de este servidor y borra todos sus datos, transcripciones incluidas.</p>
+        <Button variant="danger" onClick={() => setRemoveOpen(true)}>
+          Quitar bot del servidor
+        </Button>
+      </section>
+
+      <RemoveBotDialog guildId={guildId} open={removeOpen} onOpenChange={setRemoveOpen} />
       <SetupTour setup={setup} open={tourOpen} onOpenChange={setTourOpen} />
     </div>
   )

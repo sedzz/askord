@@ -16,7 +16,7 @@ type Props = {
   createError: Error | null
   missingPermissionsHint: string
   // Acción principal opcional junto al selector (por ejemplo, publicar el panel).
-  action?: { label: string; onClick: () => void; disabled: boolean }
+  action?: { label: string; onClick: () => void; disabled: boolean; loading?: boolean }
 }
 
 // Campo con etiqueta, ayuda, selector, botón para crear la opción y aviso de permisos.
@@ -50,13 +50,13 @@ export function SelectField({
           placeholder={options.length ? 'Selecciona…' : 'No hay ninguno'}
           disabled={!options.length}
         />
-        <Button variant="outline" onClick={onCreate} disabled={creating}>
+        <Button variant="outline" onClick={onCreate} loading={creating}>
           {createLabel}
         </Button>
       </div>
       {action && (
         <div className="field-row">
-          <Button onClick={action.onClick} disabled={action.disabled}>
+          <Button onClick={action.onClick} disabled={action.disabled} loading={action.loading}>
             {action.label}
           </Button>
         </div>
