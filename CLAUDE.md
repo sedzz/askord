@@ -32,7 +32,7 @@ pnpm build    # tsc -b && vite build
 pnpm lint     # oxlint
 ```
 
-Las migraciones son SQL en formato goose en `backend/db/migrations/` (`-- +goose Up`). Ningún código Go las aplica; hay que ejecutarlas con la CLI de goose contra `DATABASE_URL`. Las nuevas llevan el siguiente número secuencial.
+Las migraciones son SQL en formato goose en `backend/db/migrations/` (`-- +goose Up`) y van embebidas en el binario (`backend/db/embed.go`): la API las aplica sola al arrancar (`store.Migrate`, con candado de Postgres por si hay varias copias). Las nuevas llevan el siguiente número secuencial. Los tests con base de datos (`internal/store`) usan `TEST_DATABASE_URL`, una base vacía distinta de la de desarrollo; sin ella se omiten.
 
 ## Arquitectura
 

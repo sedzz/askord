@@ -47,6 +47,10 @@ func run() error {
 	}
 	defer st.Close()
 
+	if err := st.Migrate(ctx); err != nil {
+		return err
+	}
+
 	b, err := bot.New(cfg.DiscordBotToken, st)
 	if err != nil {
 		return err
