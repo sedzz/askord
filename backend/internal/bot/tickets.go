@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	customIDOpenTicket   = "ticket:open"
-	customIDCloseTicket  = "ticket:close"
-	customIDDeleteTicket = "ticket:delete"
+	customIDOpenTicket       = "ticket:open"
+	customIDCloseTicket      = "ticket:close"
+	customIDTranscribeTicket = "ticket:transcribe"
+	customIDDeleteTicket     = "ticket:delete"
 )
 
 const (
@@ -95,6 +96,8 @@ func (b *Bot) onInteraction(_ *discordgo.Session, i *discordgo.InteractionCreate
 		b.openTicket(i)
 	case customIDCloseTicket:
 		b.closeTicket(i)
+	case customIDTranscribeTicket:
+		b.transcribeTicket(i)
 	case customIDDeleteTicket:
 		b.deleteTicket(i)
 	}
@@ -246,8 +249,12 @@ func (b *Bot) CreateTextChannel(guildID, name string) (Option, error) {
 	return Option{ID: c.ID, Name: c.Name}, nil
 }
 
-func buttonRow(b discordgo.Button) discordgo.MessageComponent {
-	return discordgo.ActionsRow{Components: []discordgo.MessageComponent{b}}
+func buttonRow(buttons ...discordgo.Button) discordgo.MessageComponent {
+	row := discordgo.ActionsRow{}
+	for _, b := range buttons {
+		row.Components = append(row.Components, b)
+	}
+	return row
 }
 
 // canManageTicket: quien abrió el ticket, el rol de staff o un administrador.
@@ -325,16 +332,24 @@ func (b *Bot) closeTicket(i *discordgo.InteractionCreate) {
 		slog.Error("renombrar canal", "channel", ticket.ChannelID, "err", err)
 	}
 
-	content := fmt.Sprintf("🔒 Ticket cerrado por <@%s>. El staff puede eliminar el canal cuando quiera.", i.Member.User.ID)
+	content := fmt.Sprintf("🔒 Ticket cerrado por <@%s>. El staff puede transcribir la conversación o eliminar el canal.", i.Member.User.ID)
 	_, err = b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content:         &content,
 		AllowedMentions: &discordgo.MessageAllowedMentions{},
-		Components: &[]discordgo.MessageComponent{buttonRow(discordgo.Button{
-			Label:    "Eliminar ticket",
-			Style:    discordgo.DangerButton,
-			CustomID: customIDDeleteTicket,
-			Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
-		})},
+		Components: &[]discordgo.MessageComponent{buttonRow(
+			discordgo.Button{
+				Label:    "Transcribir",
+				Style:    discordgo.SecondaryButton,
+				CustomID: customIDTranscribeTicket,
+				Emoji:    &discordgo.ComponentEmoji{Name: "📝"},
+			},
+			discordgo.Button{
+				Label:    "Eliminar ticket",
+				Style:    discordgo.DangerButton,
+				CustomID: customIDDeleteTicket,
+				Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
+			},
+		)},
 	})
 	if err != nil {
 		slog.Error("editar mensaje del ticket", "channel", ticket.ChannelID, "err", err)
@@ -371,5 +386,52 @@ func (b *Bot) deleteTicket(i *discordgo.InteractionCreate) {
 	b.replyEphemeral(i, "Eliminando el ticket…")
 	if _, err := b.session.ChannelDelete(ticket.ChannelID); err != nil {
 		slog.Error("eliminar canal", "channel", ticket.ChannelID, "err", err)
+	}
+}
+
+// transcribeTicket guarda la conversación de un ticket cerrado, solo si el staff lo pide.
+func (b *Bot) transcribeTicket(i *discordgo.InteractionCreate) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	ticket, status, err := b.store.TicketByChannel(ctx, i.ChannelID)
+	if err != nil {
+		slog.Error("buscar ticket", "channel", i.ChannelID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if ticket == nil || status != "closed" {
+		b.replyEphemeral(i, "Este ticket no se puede transcribir.")
+		return
+	}
+	settings, err := b.store.GetTicketSettings(ctx, ticket.GuildID)
+	if err != nil || settings == nil {
+		slog.Error("leer configuracion de tickets", "guild", ticket.GuildID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if !isStaff(i.Member, settings.StaffRoleID) {
+		b.replyEphemeral(i, "Solo el staff puede transcribir tickets.")
+		return
+	}
+
+	// Leer el historial puede tardar más de los 3 s que da Discord: se difiere la respuesta.
+	if err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
+	}); err != nil {
+		slog.Error("responder interaccion", "err", err)
+		return
+	}
+
+	var msg string
+	if n, err := b.saveTranscript(ctx, ticket); err != nil {
+		slog.Error("guardar transcript", "channel", ticket.ChannelID, "err", err)
+		msg = "No se pudo guardar el transcript. Inténtalo de nuevo."
+	} else {
+		msg = fmt.Sprintf("Transcript guardado (%d mensajes). Puedes verlo en la app.", n)
+	}
+	if _, err := b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &msg}); err != nil {
+		slog.Error("editar respuesta", "err", err)
 	}
 }

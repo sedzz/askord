@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -96,4 +97,43 @@ func (s *Store) CloseTicket(ctx context.Context, channelID, closedBy string) (bo
 		UPDATE tickets SET status = 'closed', closed_at = now(), closed_by = $2
 		WHERE channel_id = $1 AND status = 'open'`, channelID, closedBy)
 	return tag.RowsAffected() == 1, err
+}
+
+// TicketMessage es un mensaje del transcript de un ticket.
+type TicketMessage struct {
+	ID          string
+	AuthorID    string
+	AuthorName  string
+	Content     string
+	Attachments []string
+	CreatedAt   time.Time
+}
+
+// SaveTicketMessages guarda (o actualiza, si se editaron) los mensajes del transcript.
+func (s *Store) SaveTicketMessages(ctx context.Context, ticketID int64, msgs []TicketMessage) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	batch := &pgx.Batch{}
+	for _, m := range msgs {
+		attachments := m.Attachments
+		if attachments == nil {
+			attachments = []string{}
+		}
+		batch.Queue(`
+			INSERT INTO ticket_messages (message_id, ticket_id, author_id, author_name, content, attachments, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (message_id) DO UPDATE
+			SET content = EXCLUDED.content, attachments = EXCLUDED.attachments`,
+			m.ID, ticketID, m.AuthorID, m.AuthorName, m.Content, attachments, m.CreatedAt)
+	}
+
+	results := s.pool.SendBatch(ctx, batch)
+	defer results.Close()
+	for range msgs {
+		if _, err := results.Exec(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
