@@ -165,3 +165,44 @@ func (s *Store) DeleteGuildsNotIn(ctx context.Context, keep []string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM guilds WHERE id <> ALL($1)`, keep)
 	return err
 }
+
+// TicketSettings es la configuración de tickets de un servidor.
+type TicketSettings struct {
+	CategoryID  string `json:"categoryId"`
+	StaffRoleID string `json:"staffRoleId"`
+}
+
+// CanManageInstalledGuild indica si el usuario administra el servidor y el bot está en él.
+func (s *Store) CanManageInstalledGuild(ctx context.Context, userID, guildID string) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM user_guilds ug JOIN guilds g ON g.id = ug.guild_id
+			WHERE ug.user_id = $1 AND ug.guild_id = $2
+		)`, userID, guildID).Scan(&ok)
+	return ok, err
+}
+
+// GetTicketSettings devuelve la configuración, o nil si aún no hay.
+func (s *Store) GetTicketSettings(ctx context.Context, guildID string) (*TicketSettings, error) {
+	var t TicketSettings
+	err := s.pool.QueryRow(ctx,
+		`SELECT category_id, staff_role_id FROM ticket_settings WHERE guild_id = $1`, guildID).
+		Scan(&t.CategoryID, &t.StaffRoleID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (s *Store) SaveTicketSettings(ctx context.Context, guildID string, t TicketSettings) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO ticket_settings (guild_id, category_id, staff_role_id) VALUES ($1, $2, $3)
+		ON CONFLICT (guild_id) DO UPDATE
+		SET category_id = EXCLUDED.category_id, staff_role_id = EXCLUDED.staff_role_id, updated_at = now()`,
+		guildID, t.CategoryID, t.StaffRoleID)
+	return err
+}

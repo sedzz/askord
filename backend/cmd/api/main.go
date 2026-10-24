@@ -56,7 +56,7 @@ func run() error {
 	defer b.Close() //nolint:errcheck
 
 	authH := auth.New(cfg, st)
-	dashH := dashboard.New(cfg, st)
+	dashH := dashboard.New(cfg, st, b)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
@@ -73,6 +73,10 @@ func run() error {
 		r.Use(authH.Require)
 		r.Get("/me", authH.Me)
 		r.Get("/guilds", dashH.Guilds)
+		r.Get("/guilds/{guildID}/tickets", dashH.GetTickets)
+		r.Put("/guilds/{guildID}/tickets", dashH.PutTickets)
+		r.Post("/guilds/{guildID}/tickets/category", dashH.CreateCategory)
+		r.Post("/guilds/{guildID}/tickets/role", dashH.CreateRole)
 	})
 
 	srv := &http.Server{

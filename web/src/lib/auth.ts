@@ -1,4 +1,5 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, type QueryClient } from '@tanstack/react-query'
+import { redirect } from '@tanstack/react-router'
 
 export type User = {
   id: string
@@ -28,4 +29,10 @@ export async function logout(): Promise<void> {
 export function avatarUrl(user: User): string | null {
   if (!user.avatar) return null
   return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+}
+
+// Para beforeLoad de rutas protegidas: redirige a /login si no hay sesión.
+export async function requireUser(queryClient: QueryClient): Promise<void> {
+  const user = await queryClient.ensureQueryData(meQuery)
+  if (!user) throw redirect({ to: '/login' })
 }

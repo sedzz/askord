@@ -1,13 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
-import { avatarUrl, logout, meQuery } from '../lib/auth'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { avatarUrl, logout, meQuery, requireUser } from '../lib/auth'
 import { guildIconUrl, guildsQuery, type Guild } from '../lib/guilds'
 
 export const Route = createFileRoute('/')({
-  beforeLoad: async ({ context }) => {
-    const user = await context.queryClient.ensureQueryData(meQuery)
-    if (!user) throw redirect({ to: '/login' })
-  },
+  beforeLoad: ({ context }) => requireUser(context.queryClient),
   component: Dashboard,
 })
 
@@ -85,7 +82,12 @@ function GuildCard({ guild }: { guild: Guild }) {
       )}
       <span className="guild-name">{guild.name}</span>
       {guild.botInstalled ? (
-        <span className="badge">Bot activo</span>
+        <>
+          <span className="badge">Bot activo</span>
+          <Link className="button" to="/guilds/$guildId" params={{ guildId: guild.id }}>
+            Configurar
+          </Link>
+        </>
       ) : (
         <a className="button" href={guild.inviteUrl} target="_blank" rel="noreferrer">
           Añadir bot

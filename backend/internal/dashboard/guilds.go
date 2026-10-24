@@ -1,28 +1,29 @@
 package dashboard
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	"github.com/sedzz/askord/internal/auth"
+	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/config"
 	"github.com/sedzz/askord/internal/store"
 )
 
-// Permisos que se piden al invitar al bot: ver canales, enviar mensajes,
-// leer historial, crear hilos privados y escribir en hilos.
-const botPermissions = 1<<10 | 1<<11 | 1<<16 | 1<<36 | 1<<38
+// Permisos que se piden al invitar al bot: gestionar canales y roles, ver
+// canales, enviar mensajes, leer historial, crear hilos privados y escribir en hilos.
+const botPermissions = 1<<4 | 1<<28 | 1<<10 | 1<<11 | 1<<16 | 1<<36 | 1<<38
 
 type Handler struct {
 	cfg   config.Config
 	store *store.Store
+	bot   *bot.Bot
 }
 
-func New(cfg config.Config, s *store.Store) *Handler {
-	return &Handler{cfg: cfg, store: s}
+func New(cfg config.Config, s *store.Store, b *bot.Bot) *Handler {
+	return &Handler{cfg: cfg, store: s, bot: b}
 }
 
 type guildResponse struct {
@@ -44,8 +45,7 @@ func (h *Handler) Guilds(w http.ResponseWriter, r *http.Request) {
 	for _, g := range guilds {
 		out = append(out, guildResponse{GuildView: g, InviteURL: h.inviteURL(g.ID)})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
+	writeJSON(w, out)
 }
 
 func (h *Handler) inviteURL(guildID string) string {

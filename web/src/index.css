@@ -156,3 +156,48 @@ h2 {
   background: rgba(34, 197, 94, 0.15);
   border-radius: 999px;
 }
+
+.form {
+  display: grid;
+  gap: 16px;
+  max-width: 420px;
+  margin-top: 24px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  color: var(--text-h);
+}
+
+.field select {
+  padding: 8px;
+  font: inherit;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.field small {
+  color: var(--text);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.saved {
+  color: #15803d;
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.field-row select {
+  flex: 1;
+}
