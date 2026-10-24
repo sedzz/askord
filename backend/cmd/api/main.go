@@ -77,6 +77,8 @@ func run() error {
 		r.Put("/guilds/{guildID}/tickets", dashH.PutTickets)
 		r.Post("/guilds/{guildID}/tickets/category", dashH.CreateCategory)
 		r.Post("/guilds/{guildID}/tickets/role", dashH.CreateRole)
+		r.Post("/guilds/{guildID}/tickets/channel", dashH.CreateChannel)
+		r.Post("/guilds/{guildID}/tickets/panel", dashH.PublishPanel)
 	})
 
 	srv := &http.Server{

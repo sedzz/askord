@@ -170,6 +170,9 @@ func (s *Store) DeleteGuildsNotIn(ctx context.Context, keep []string) error {
 type TicketSettings struct {
 	CategoryID  string `json:"categoryId"`
 	StaffRoleID string `json:"staffRoleId"`
+	// Panel publicado (vacío si aún no hay). Solo lectura: lo escribe SavePanel.
+	PanelChannelID string `json:"panelChannelId"`
+	PanelMessageID string `json:"-"`
 }
 
 // CanManageInstalledGuild indica si el usuario administra el servidor y el bot está en él.
@@ -187,8 +190,9 @@ func (s *Store) CanManageInstalledGuild(ctx context.Context, userID, guildID str
 func (s *Store) GetTicketSettings(ctx context.Context, guildID string) (*TicketSettings, error) {
 	var t TicketSettings
 	err := s.pool.QueryRow(ctx,
-		`SELECT category_id, staff_role_id FROM ticket_settings WHERE guild_id = $1`, guildID).
-		Scan(&t.CategoryID, &t.StaffRoleID)
+		`SELECT category_id, staff_role_id, COALESCE(panel_channel_id, ''), COALESCE(panel_message_id, '')
+		 FROM ticket_settings WHERE guild_id = $1`, guildID).
+		Scan(&t.CategoryID, &t.StaffRoleID, &t.PanelChannelID, &t.PanelMessageID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

@@ -201,3 +201,18 @@ h2 {
 .field-row select {
   flex: 1;
 }
+
+.panel {
+  padding-top: 24px;
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.field > small {
+  color: var(--text);
+}
+
+.hint {
+  margin-top: 32px;
+  color: var(--text);
+}

@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
+import { PanelSection } from '../components/PanelSection'
+import { Select } from '../components/Select'
 import { requireUser } from '../lib/auth'
 import {
   createCategory,
   createRole,
-  MISSING_PERMISSIONS,
   saveTicketSettings,
   ticketConfigQuery,
   type Option,
@@ -72,21 +73,12 @@ function GuildSettings() {
     <main className="page">
       <Link to="/">← Volver</Link>
       <h1>Tickets</h1>
-      <p>Elige dónde se crearán los tickets y quién podrá verlos.</p>
+      <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
 
       <form className="form" onSubmit={onSubmit}>
         <Select
-          label="Categoría de tickets"
-          value={categoryId}
-          options={data.categories}
-          onChange={setCategoryId}
-          createLabel="Crear categoría"
-          onCreate={() => makeCategory.mutate()}
-          creating={makeCategory.isPending}
-          createError={makeCategory.error}
-        />
-        <Select
-          label="Rol de staff"
+          label="1. Rol de staff"
+          help="Las personas con este rol verán y atenderán todos los tickets."
           value={staffRoleId}
           options={data.roles}
           onChange={setStaffRoleId}
@@ -94,6 +86,19 @@ function GuildSettings() {
           onCreate={() => makeRole.mutate()}
           creating={makeRole.isPending}
           createError={makeRole.error}
+          missingPermissionsHint='El bot no tiene permisos. Dale "Gestionar roles" en Discord, o vuelve a invitarlo desde el panel.'
+        />
+        <Select
+          label="2. Categoría de tickets"
+          help="Aquí se crearán los canales privados de cada ticket (ticket-0001, ticket-0002…)."
+          value={categoryId}
+          options={data.categories}
+          onChange={setCategoryId}
+          createLabel="Crear categoría"
+          onCreate={() => makeCategory.mutate()}
+          creating={makeCategory.isPending}
+          createError={makeCategory.error}
+          missingPermissionsHint='El bot no tiene permisos. Dale "Gestionar canales" en Discord, o vuelve a invitarlo desde el panel.'
         />
 
         <div className="form-actions">
@@ -104,59 +109,16 @@ function GuildSettings() {
           {save.isError && <span className="error">No se pudo guardar</span>}
         </div>
       </form>
-    </main>
-  )
-}
 
-type SelectProps = {
-  label: string
-  value: string
-  options: Option[]
-  onChange: (value: string) => void
-  createLabel: string
-  onCreate: () => void
-  creating: boolean
-  createError: Error | null
-}
-
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-  createLabel,
-  onCreate,
-  creating,
-  createError,
-}: SelectProps) {
-  return (
-    <div className="field">
-      <label htmlFor={label}>{label}</label>
-      <div className="field-row">
-        <select
-          id={label}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={!options.length}
-        >
-          <option value="">{options.length ? 'Selecciona…' : 'No hay ninguno'}</option>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={onCreate} disabled={creating}>
-          {createLabel}
-        </button>
-      </div>
-      {createError && (
-        <small className="error">
-          {createError.message === MISSING_PERMISSIONS
-            ? 'El bot no tiene permisos. Dale "Gestionar canales" y "Gestionar roles" en Discord, o vuelve a invitarlo desde el panel.'
-            : 'No se pudo crear. Inténtalo de nuevo.'}
-        </small>
+      {data.settings ? (
+        <PanelSection
+          guildId={guildId}
+          channels={data.textChannels}
+          currentChannelId={data.settings.panelChannelId}
+        />
+      ) : (
+        <p className="hint">Guarda los pasos 1 y 2 para poder publicar el panel (paso 3).</p>
       )}
-    </div>
+    </main>
   )
 }

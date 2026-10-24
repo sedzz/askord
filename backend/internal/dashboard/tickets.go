@@ -15,9 +15,10 @@ import (
 )
 
 type ticketsResponse struct {
-	Settings   *store.TicketSettings `json:"settings"`
-	Categories []bot.Option          `json:"categories"`
-	Roles      []bot.Option          `json:"roles"`
+	Settings     *store.TicketSettings `json:"settings"`
+	Categories   []bot.Option          `json:"categories"`
+	Roles        []bot.Option          `json:"roles"`
+	TextChannels []bot.Option          `json:"textChannels"`
 }
 
 // guildID devuelve el servidor de la URL si el usuario lo administra y el bot
@@ -63,7 +64,71 @@ func (h *Handler) GetTickets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, ticketsResponse{Settings: settings, Categories: categories, Roles: roles})
+	textChannels, err := h.bot.TextChannels(guildID)
+	if err != nil {
+		slog.Error("listar canales", "err", err)
+		http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+		return
+	}
+
+	writeJSON(w, ticketsResponse{
+		Settings: settings, Categories: categories, Roles: roles, TextChannels: textChannels,
+	})
+}
+
+// PublishPanel envía el panel con el botón "Crear ticket" al canal elegido.
+func (h *Handler) PublishPanel(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+
+	var in struct {
+		ChannelID string `json:"channelId"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&in); err != nil {
+		http.Error(w, "cuerpo invalido", http.StatusBadRequest)
+		return
+	}
+
+	settings, err := h.store.GetTicketSettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de tickets", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if settings == nil {
+		http.Error(w, "guarda primero la categoria y el rol", http.StatusConflict)
+		return
+	}
+
+	channels, err := h.bot.TextChannels(guildID)
+	if err != nil {
+		slog.Error("listar canales", "err", err)
+		http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+		return
+	}
+	if !slices.ContainsFunc(channels, func(o bot.Option) bool { return o.ID == in.ChannelID }) {
+		http.Error(w, "canal invalido", http.StatusBadRequest)
+		return
+	}
+
+	messageID, err := h.bot.PublishPanel(in.ChannelID, settings.PanelChannelID, settings.PanelMessageID)
+	if errors.Is(err, bot.ErrMissingPermissions) {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	if err != nil {
+		slog.Error("publicar panel", "err", err)
+		http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+		return
+	}
+	if err := h.store.SavePanel(r.Context(), guildID, in.ChannelID, messageID); err != nil {
+		slog.Error("guardar panel", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]string{"channelId": in.ChannelID})
 }
 
 // PutTickets guarda la categoría y el rol de staff, validando que existan en el servidor.
@@ -144,4 +209,13 @@ func (h *Handler) created(w http.ResponseWriter, what string, create func() (bot
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(opt)
+}
+
+// CreateChannel crea el canal "soporte" (solo lectura) para publicar el panel.
+func (h *Handler) CreateChannel(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+	h.created(w, "canal", func() (bot.Option, error) { return h.bot.CreateTextChannel(guildID, "soporte") })
 }

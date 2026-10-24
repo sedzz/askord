@@ -30,6 +30,8 @@ func New(token string, s *store.Store) (*Bot, error) {
 	session.AddHandler(b.onGuildCreate)
 	session.AddHandler(b.onGuildUpdate)
 	session.AddHandler(b.onGuildDelete)
+	session.AddHandler(b.onInteraction)
+	session.AddHandler(b.onChannelDelete)
 	return b, nil
 }
 
