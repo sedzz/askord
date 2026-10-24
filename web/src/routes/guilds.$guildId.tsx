@@ -7,6 +7,7 @@ import { CategoryField, PanelField, RoleField } from '../components/TicketFields
 import { Button } from '../components/ui/Button'
 import { requireUser } from '../lib/auth'
 import { guildsQuery } from '../lib/guilds'
+import { toast } from '../lib/toast'
 import { ticketConfigQuery } from '../lib/tickets'
 import { useTicketSetup } from '../lib/useTicketSetup'
 
@@ -47,7 +48,7 @@ function GuildSettings({ guildId }: { guildId: string }) {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
-    save.mutate()
+    save.mutate(undefined, { onSuccess: () => toast('Cambios guardados') })
   }
 
   return (
@@ -67,7 +68,6 @@ function GuildSettings({ guildId }: { guildId: string }) {
           >
             {save.isPending ? 'Guardando' : 'Guardar'}
           </Button>
-          {save.isSuccess && <span className="saved">Guardado</span>}
           {save.isError && <span className="error">No se pudo guardar</span>}
         </div>
       </form>

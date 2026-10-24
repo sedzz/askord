@@ -191,10 +191,6 @@ h2 {
   gap: 12px;
 }
 
-.saved {
-  color: var(--success);
-}
-
 .field-row {
   display: flex;
   gap: 8px;
@@ -393,4 +389,9 @@ h2 {
 
 .tour-done .ui-button {
   margin-top: 12px;
+}
+
+/* Fila de acción bajo el selector (p. ej. "Volver a publicar"): misma distancia que "Guardar". */
+.field-row + .field-row {
+  margin-top: 10px;
 }

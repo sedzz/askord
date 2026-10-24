@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast'
 import { MISSING_PERMISSIONS } from '../lib/tickets'
 import type { TicketSetup } from '../lib/useTicketSetup'
 import { SelectField } from './SelectField'
@@ -63,14 +64,14 @@ export function PanelField({ setup, publishButton = true }: Props & { publishBut
           publishButton
             ? {
                 label: published ? 'Volver a publicar' : 'Publicar panel',
-                onClick: () => publish.mutate(),
+                onClick: () =>
+                  publish.mutate(undefined, { onSuccess: () => toast('Panel publicado') }),
                 disabled: !setup.channelId,
                 loading: publish.isPending,
               }
             : undefined
         }
       />
-      {publishButton && publish.isSuccess && <small className="saved">Panel publicado</small>}
       {publish.isError && (
         <small className="error">
           {publish.error.message === MISSING_PERMISSIONS

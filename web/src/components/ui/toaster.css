@@ -1,0 +1,76 @@
+.ui-toaster {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 100;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  pointer-events: none;
+}
+
+.ui-toast {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-h);
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--bg), white 6%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 40%),
+    0 4px 6px -4px rgb(0 0 0 / 40%);
+  animation: ui-toast-in 0.2s ease-out;
+}
+
+.ui-toast svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.ui-toast--success svg {
+  color: var(--success);
+}
+
+.ui-toast--error svg {
+  color: var(--danger);
+}
+
+.ui-toast button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+
+.ui-toast button:hover {
+  color: var(--text-h);
+  background: rgb(255 255 255 / 8%);
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}
