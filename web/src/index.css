@@ -181,15 +181,6 @@ h2 {
   color: var(--text-h);
 }
 
-.field select {
-  padding: 8px;
-  font: inherit;
-  color: var(--text-h);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
 .field small {
   color: var(--text);
 }
@@ -209,7 +200,7 @@ h2 {
   gap: 8px;
 }
 
-.field-row select {
+.field-row .ui-select {
   flex: 1;
 }
 
@@ -328,4 +319,42 @@ h2 {
 .content-centered {
   max-width: 640px;
   margin: 0 auto;
+}
+
+/* Tour de configuración. */
+.tour-step {
+  display: grid;
+  gap: 12px;
+  min-height: 160px;
+  align-content: start;
+}
+
+.tour-step h3 {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.tour-step p {
+  margin: 0;
+}
+
+.tour-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.tour-summary dt {
+  color: var(--text);
+}
+
+.tour-summary dd {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.tour-actions {
+  display: flex;
+  justify-content: space-between;
 }

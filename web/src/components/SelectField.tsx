@@ -1,5 +1,7 @@
+import { useId } from 'react'
 import { MISSING_PERMISSIONS, type Option } from '../lib/tickets'
 import { Button } from './ui/Button'
+import { Select } from './ui/Select'
 
 type Props = {
   label: string
@@ -17,8 +19,8 @@ type Props = {
   action?: { label: string; onClick: () => void; disabled: boolean }
 }
 
-// Selector de opciones con ayuda, botón para crear la opción y aviso de permisos.
-export function Select({
+// Campo con etiqueta, ayuda, selector, botón para crear la opción y aviso de permisos.
+export function SelectField({
   label,
   help,
   value,
@@ -32,25 +34,21 @@ export function Select({
   missingPermissionsHint,
   action,
 }: Props) {
+  const id = useId()
+
   return (
     <div className="field">
-      <label htmlFor={label}>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <small>{help}</small>
       <div className="field-row">
-        <select
-          id={label}
+        <Select
+          id={id}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
+          options={options.map((o) => ({ value: o.id, label: optionPrefix + o.name }))}
+          placeholder={options.length ? 'Selecciona…' : 'No hay ninguno'}
           disabled={!options.length}
-        >
-          <option value="">{options.length ? 'Selecciona…' : 'No hay ninguno'}</option>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {optionPrefix}
-              {o.name}
-            </option>
-          ))}
-        </select>
+        />
         <Button variant="outline" onClick={onCreate} disabled={creating}>
           {createLabel}
         </Button>

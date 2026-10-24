@@ -1,0 +1,25 @@
+.ui-stepper {
+  display: grid;
+  gap: 8px;
+}
+
+.ui-stepper-bars {
+  display: flex;
+  gap: 6px;
+}
+
+.ui-stepper-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+.ui-stepper-bar.done {
+  background: var(--accent);
+}
+
+.ui-stepper-label {
+  font-size: 0.8125rem;
+}

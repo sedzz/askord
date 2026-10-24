@@ -1,20 +1,13 @@
-import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
-import { PanelSection } from '../components/PanelSection'
-import { Select } from '../components/Select'
 import { AppShell } from '../components/AppShell'
+import { SetupTour } from '../components/SetupTour'
+import { CategoryField, PanelField, RoleField } from '../components/TicketFields'
 import { Button } from '../components/ui/Button'
 import { requireUser } from '../lib/auth'
 import { guildsQuery } from '../lib/guilds'
-import {
-  createCategory,
-  createRole,
-  saveTicketSettings,
-  ticketConfigQuery,
-  type Option,
-  type TicketConfig,
-} from '../lib/tickets'
+import { ticketConfigQuery } from '../lib/tickets'
+import { useTicketSetup } from '../lib/useTicketSetup'
 
 export const Route = createFileRoute('/guilds/$guildId')({
   beforeLoad: ({ context }) => requireUser(context.queryClient),
@@ -43,41 +36,12 @@ function GuildPage() {
 }
 
 function GuildSettings({ guildId }: { guildId: string }) {
-  const { data } = useSuspenseQuery(ticketConfigQuery(guildId))
-  const queryClient = useQueryClient()
-  const queryKey = ticketConfigQuery(guildId).queryKey
+  const setup = useTicketSetup(guildId)
+  const { config, save } = setup
 
-  const [categoryId, setCategoryId] = useState(data.settings?.categoryId ?? '')
-  const [staffRoleId, setStaffRoleId] = useState(data.settings?.staffRoleId ?? '')
-
-  const save = useMutation({
-    mutationFn: () => saveTicketSettings(guildId, { categoryId, staffRoleId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-  })
-
-  // Añade lo recién creado a la lista y lo deja seleccionado.
-  function addOption(field: 'categories' | 'roles', option: Option) {
-    queryClient.setQueryData<TicketConfig>(
-      queryKey,
-      (old) => old && { ...old, [field]: [...old[field], option] },
-    )
-  }
-
-  const makeCategory = useMutation({
-    mutationFn: () => createCategory(guildId),
-    onSuccess: (option) => {
-      addOption('categories', option)
-      setCategoryId(option.id)
-    },
-  })
-
-  const makeRole = useMutation({
-    mutationFn: () => createRole(guildId),
-    onSuccess: (option) => {
-      addOption('roles', option)
-      setStaffRoleId(option.id)
-    },
-  })
+  // Mientras falte algo (servidor nuevo o a medias), el tour se abre solo y no se puede
+  // cerrar hasta terminarlo. Se decide al entrar: publicar el panel no lo cierra a mitad.
+  const [tourOpen, setTourOpen] = useState(!config.settings?.panelChannelId)
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -90,33 +54,14 @@ function GuildSettings({ guildId }: { guildId: string }) {
       <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
 
       <form className="form" onSubmit={onSubmit}>
-        <Select
-          label="1. Rol de staff"
-          help="Las personas con este rol verán y atenderán todos los tickets."
-          value={staffRoleId}
-          options={data.roles}
-          onChange={setStaffRoleId}
-          createLabel="Crear rol"
-          onCreate={() => makeRole.mutate()}
-          creating={makeRole.isPending}
-          createError={makeRole.error}
-          missingPermissionsHint='El bot no tiene permisos. Dale "Gestionar roles" en Discord, o vuelve a invitarlo desde el panel.'
-        />
-        <Select
-          label="2. Categoría de tickets"
-          help="Aquí se crearán los canales privados de cada ticket (ticket-0001, ticket-0002…)."
-          value={categoryId}
-          options={data.categories}
-          onChange={setCategoryId}
-          createLabel="Crear categoría"
-          onCreate={() => makeCategory.mutate()}
-          creating={makeCategory.isPending}
-          createError={makeCategory.error}
-          missingPermissionsHint='El bot no tiene permisos. Dale "Gestionar canales" en Discord, o vuelve a invitarlo desde el panel.'
-        />
+        <RoleField setup={setup} />
+        <CategoryField setup={setup} />
 
         <div className="form-actions">
-          <Button type="submit" disabled={!categoryId || !staffRoleId || save.isPending}>
+          <Button
+            type="submit"
+            disabled={!setup.categoryId || !setup.staffRoleId || save.isPending}
+          >
             Guardar
           </Button>
           {save.isSuccess && <span className="saved">Guardado</span>}
@@ -124,15 +69,15 @@ function GuildSettings({ guildId }: { guildId: string }) {
         </div>
       </form>
 
-      {data.settings ? (
-        <PanelSection
-          guildId={guildId}
-          channels={data.textChannels}
-          currentChannelId={data.settings.panelChannelId}
-        />
+      {config.settings ? (
+        <section className="form panel">
+          <PanelField setup={setup} />
+        </section>
       ) : (
         <p className="hint">Guarda los pasos 1 y 2 para poder publicar el panel (paso 3).</p>
       )}
+
+      <SetupTour setup={setup} open={tourOpen} onOpenChange={setTourOpen} />
     </div>
   )
 }
