@@ -1,0 +1,85 @@
+/* Transcripciones: filtros, lista, exportación y conversación. */
+.export {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.export > span {
+  font-size: 0.875rem;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 20px 0;
+}
+
+.filter {
+  display: grid;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+
+.filter-grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+.transcripts {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0 0 16px;
+  list-style: none;
+}
+
+.transcript-row {
+  display: grid;
+  grid-template-columns: 70px 140px 1fr auto auto;
+  gap: 24px;
+  align-items: center;
+  padding: 12px;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.transcript-row:hover {
+  background: rgb(255 255 255 / 5%);
+}
+
+.transcript-number {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.transcript-user {
+  overflow: hidden;
+  color: var(--text-h);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Primera frase de la conversación: se corta con "…" si no cabe. */
+.transcript-preview {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transcript-meta {
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.conversation {
+  display: grid;
+  gap: 16px;
+}

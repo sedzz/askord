@@ -80,6 +80,10 @@ func run() error {
 		r.Post("/guilds/{guildID}/tickets/role", dashH.CreateRole)
 		r.Post("/guilds/{guildID}/tickets/channel", dashH.CreateChannel)
 		r.Post("/guilds/{guildID}/tickets/panel", dashH.PublishPanel)
+		r.Get("/guilds/{guildID}/transcripts", dashH.ListTranscripts)
+		r.Get("/guilds/{guildID}/transcripts/export", dashH.ExportTranscripts)
+		r.Get("/guilds/{guildID}/transcripts/{ticketID}", dashH.GetTranscript)
+		r.Get("/guilds/{guildID}/transcripts/{ticketID}/export", dashH.ExportTranscript)
 	})
 
 	srv := &http.Server{

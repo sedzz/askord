@@ -101,12 +101,13 @@ func (s *Store) CloseTicket(ctx context.Context, channelID, closedBy string) (bo
 
 // TicketMessage es un mensaje del transcript de un ticket.
 type TicketMessage struct {
-	ID          string
-	AuthorID    string
-	AuthorName  string
-	Content     string
-	Attachments []string
-	CreatedAt   time.Time
+	ID           string
+	AuthorID     string
+	AuthorName   string
+	AuthorAvatar string // hash del avatar en Discord; vacío si usa el de por defecto
+	Content      string
+	Attachments  []string
+	CreatedAt    time.Time
 }
 
 // SaveTicketMessages guarda (o actualiza, si se editaron) los mensajes del transcript.
@@ -121,11 +122,12 @@ func (s *Store) SaveTicketMessages(ctx context.Context, ticketID int64, msgs []T
 			attachments = []string{}
 		}
 		batch.Queue(`
-			INSERT INTO ticket_messages (message_id, ticket_id, author_id, author_name, content, attachments, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			INSERT INTO ticket_messages (message_id, ticket_id, author_id, author_name, author_avatar, content, attachments, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (message_id) DO UPDATE
-			SET content = EXCLUDED.content, attachments = EXCLUDED.attachments`,
-			m.ID, ticketID, m.AuthorID, m.AuthorName, m.Content, attachments, m.CreatedAt)
+			SET content = EXCLUDED.content, attachments = EXCLUDED.attachments,
+			    author_name = EXCLUDED.author_name, author_avatar = EXCLUDED.author_avatar`,
+			m.ID, ticketID, m.AuthorID, m.AuthorName, m.AuthorAvatar, m.Content, attachments, m.CreatedAt)
 	}
 
 	results := s.pool.SendBatch(ctx, batch)

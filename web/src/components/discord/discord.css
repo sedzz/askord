@@ -188,3 +188,20 @@
 img.dc-avatar {
   background: none;
 }
+
+/* Texto de un mensaje largo: respeta saltos de línea y no desborda. */
+.dc-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.dc-attachment {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--dc-blue);
+  text-decoration: none;
+}
+
+.dc-attachment:hover {
+  text-decoration: underline;
+}

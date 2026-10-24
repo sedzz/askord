@@ -14,7 +14,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as GuildsGuildIdRouteImport } from './routes/guilds.$guildId'
 import { Route as GuildsGuildIdIndexRouteImport } from './routes/guilds.$guildId.index'
 import { Route as GuildsGuildIdSettingsRouteImport } from './routes/guilds.$guildId.settings'
-import { Route as GuildsGuildIdTranscriptsRouteImport } from './routes/guilds.$guildId.transcripts'
+import { Route as GuildsGuildIdTranscriptsIndexRouteImport } from './routes/guilds.$guildId.transcripts.index'
+import { Route as GuildsGuildIdTranscriptsTicketIdRouteImport } from './routes/guilds.$guildId.transcripts.$ticketId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -41,10 +42,16 @@ const GuildsGuildIdSettingsRoute = GuildsGuildIdSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => GuildsGuildIdRoute,
 } as any)
-const GuildsGuildIdTranscriptsRoute =
-  GuildsGuildIdTranscriptsRouteImport.update({
-    id: '/transcripts',
-    path: '/transcripts',
+const GuildsGuildIdTranscriptsIndexRoute =
+  GuildsGuildIdTranscriptsIndexRouteImport.update({
+    id: '/transcripts/',
+    path: '/transcripts/',
+    getParentRoute: () => GuildsGuildIdRoute,
+  } as any)
+const GuildsGuildIdTranscriptsTicketIdRoute =
+  GuildsGuildIdTranscriptsTicketIdRouteImport.update({
+    id: '/transcripts/$ticketId',
+    path: '/transcripts/$ticketId',
     getParentRoute: () => GuildsGuildIdRoute,
   } as any)
 
@@ -53,15 +60,17 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
   '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
-  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
   '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/transcripts/': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
-  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
   '/guilds/$guildId': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -69,8 +78,9 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
   '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
-  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
   '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/transcripts/': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -79,23 +89,26 @@ export interface FileRouteTypes {
     | '/login'
     | '/guilds/$guildId'
     | '/guilds/$guildId/settings'
-    | '/guilds/$guildId/transcripts'
     | '/guilds/$guildId/'
+    | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/transcripts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/guilds/$guildId/settings'
-    | '/guilds/$guildId/transcripts'
     | '/guilds/$guildId'
+    | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/transcripts'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/guilds/$guildId'
     | '/guilds/$guildId/settings'
-    | '/guilds/$guildId/transcripts'
     | '/guilds/$guildId/'
+    | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/transcripts/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -141,11 +154,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuildsGuildIdSettingsRouteImport
       parentRoute: typeof GuildsGuildIdRoute
     }
-    '/guilds/$guildId/transcripts': {
-      id: '/guilds/$guildId/transcripts'
+    '/guilds/$guildId/transcripts/': {
+      id: '/guilds/$guildId/transcripts/'
       path: '/transcripts'
-      fullPath: '/guilds/$guildId/transcripts'
-      preLoaderRoute: typeof GuildsGuildIdTranscriptsRouteImport
+      fullPath: '/guilds/$guildId/transcripts/'
+      preLoaderRoute: typeof GuildsGuildIdTranscriptsIndexRouteImport
+      parentRoute: typeof GuildsGuildIdRoute
+    }
+    '/guilds/$guildId/transcripts/$ticketId': {
+      id: '/guilds/$guildId/transcripts/$ticketId'
+      path: '/transcripts/$ticketId'
+      fullPath: '/guilds/$guildId/transcripts/$ticketId'
+      preLoaderRoute: typeof GuildsGuildIdTranscriptsTicketIdRouteImport
       parentRoute: typeof GuildsGuildIdRoute
     }
   }
@@ -153,14 +173,16 @@ declare module '@tanstack/react-router' {
 
 interface GuildsGuildIdRouteChildren {
   GuildsGuildIdSettingsRoute: typeof GuildsGuildIdSettingsRoute
-  GuildsGuildIdTranscriptsRoute: typeof GuildsGuildIdTranscriptsRoute
   GuildsGuildIdIndexRoute: typeof GuildsGuildIdIndexRoute
+  GuildsGuildIdTranscriptsTicketIdRoute: typeof GuildsGuildIdTranscriptsTicketIdRoute
+  GuildsGuildIdTranscriptsIndexRoute: typeof GuildsGuildIdTranscriptsIndexRoute
 }
 
 const GuildsGuildIdRouteChildren: GuildsGuildIdRouteChildren = {
   GuildsGuildIdSettingsRoute: GuildsGuildIdSettingsRoute,
-  GuildsGuildIdTranscriptsRoute: GuildsGuildIdTranscriptsRoute,
   GuildsGuildIdIndexRoute: GuildsGuildIdIndexRoute,
+  GuildsGuildIdTranscriptsTicketIdRoute: GuildsGuildIdTranscriptsTicketIdRoute,
+  GuildsGuildIdTranscriptsIndexRoute: GuildsGuildIdTranscriptsIndexRoute,
 }
 
 const GuildsGuildIdRouteWithChildren = GuildsGuildIdRoute._addFileChildren(

@@ -425,10 +425,15 @@ func (b *Bot) transcribeTicket(i *discordgo.InteractionCreate) {
 	}
 
 	var msg string
-	if n, err := b.saveTranscript(ctx, ticket); err != nil {
+	n, hidden, err := b.saveTranscript(ctx, ticket)
+	switch {
+	case err != nil:
 		slog.Error("guardar transcript", "channel", ticket.ChannelID, "err", err)
 		msg = "No se pudo guardar el transcript. Inténtalo de nuevo."
-	} else {
+	case hidden:
+		msg = fmt.Sprintf("Transcript guardado (%d mensajes), pero Discord ocultó el texto de la conversación. "+
+			"Activa \"Message Content Intent\" en el Portal de Desarrolladores (Bot) y vuelve a pulsar Transcribir.", n)
+	default:
 		msg = fmt.Sprintf("Transcript guardado (%d mensajes). Puedes verlo en la app.", n)
 	}
 	if _, err := b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &msg}); err != nil {
