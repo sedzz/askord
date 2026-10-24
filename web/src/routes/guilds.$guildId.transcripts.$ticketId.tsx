@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import '../components/transcripts.css'
+import { DeleteTranscriptDialog } from '../components/DeleteTranscriptDialog'
 import { DiscordFrame, DiscordMessage } from '../components/discord/Discord'
 import { TranscriptDetailSkeleton } from '../components/skeletons'
+import { Button } from '../components/ui/Button'
 import { buttonClassName } from '../components/ui/button-styles'
-import { discordAvatarUrl, formatDateTime, ticketNumber } from '../lib/format'
+import { discordAvatarUrl, formatDate, formatDateTime, ticketNumber } from '../lib/format'
 import { ticketExportUrl, transcriptQuery, type ExportFormat } from '../lib/transcripts'
 
 export const Route = createFileRoute('/guilds/$guildId/transcripts/$ticketId')({
@@ -24,6 +27,7 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
 function TranscriptDetail() {
   const { guildId, ticketId } = Route.useParams()
   const { data: t, isPending, isError } = useQuery(transcriptQuery(guildId, ticketId))
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   if (isPending) return <TranscriptDetailSkeleton />
   if (isError) {
@@ -58,13 +62,24 @@ function TranscriptDetail() {
               {label}
             </a>
           ))}
+          {t.status === 'closed' && (
+            <Button variant="danger" onClick={() => setConfirmingDelete(true)}>
+              Eliminar
+            </Button>
+          )}
         </div>
       </div>
+      <DeleteTranscriptDialog
+        guildId={guildId}
+        ticketId={t.id}
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+      />
       <p>
-        {t.typeName && <span className="chip">{`${t.typeEmoji} ${t.typeName}`.trim()}</span>}{' '}
         Abierto por <strong>{t.openerName}</strong> el {formatDateTime(t.createdAt)}
         {t.closedAt && ` · cerrado el ${formatDateTime(t.closedAt)}`}
       </p>
+      {t.expiresAt && <p>Se eliminará automáticamente el {formatDate(t.expiresAt)}.</p>}
 
       {t.answers.length > 0 && (
         <section className="card answers">
@@ -80,7 +95,11 @@ function TranscriptDetail() {
         </section>
       )}
 
-      <DiscordFrame channel={{ name: `ticket-${number}`, locked: true }}>
+      <DiscordFrame channel={{
+          name: `ticket-${number}`,
+          locked: true,
+          badge: t.typeName ? `${t.typeEmoji} ${t.typeName}`.trim() : undefined,
+        }}>
         <div className="conversation">
           {t.conversation.map((m) => (
             <DiscordMessage

@@ -8,7 +8,8 @@ type FrameProps = {
   // "chat" es el fondo de los mensajes; "sidebar", el de la lista de canales.
   tone?: 'chat' | 'sidebar'
   // Cabecera con el nombre del canal, como en la parte alta de un chat.
-  channel?: { name: string; locked?: boolean }
+  // badge: etiqueta a la derecha del nombre, p. ej. el tipo de ticket.
+  channel?: { name: string; locked?: boolean; badge?: string }
   children: ReactNode
 }
 
@@ -19,6 +20,7 @@ export function DiscordFrame({ tone = 'chat', channel, children }: FrameProps) {
         <div className="dc-header">
           <ChannelIcon locked={channel.locked} />
           <span>{channel.name}</span>
+          {channel.badge && <span className="dc-badge">{channel.badge}</span>}
         </div>
       )}
       <div className="dc-body">{children}</div>

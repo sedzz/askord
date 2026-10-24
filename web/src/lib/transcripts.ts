@@ -1,5 +1,8 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
+// Días que se conserva el contenido de un ticket desde que se cierra (igual que en el backend).
+export const RETENTION_DAYS = 90
+
 // Respuesta al formulario del tipo, con la pregunta tal como era.
 export type Answer = { question: string; answer: string }
 
@@ -11,6 +14,8 @@ export type TranscriptSummary = {
   status: 'open' | 'closed'
   createdAt: string
   closedAt: string | null
+  // Cuándo se borrará el contenido solo; null si el ticket sigue abierto.
+  expiresAt: string | null
   messages: number
   // Tipo del ticket (el actual o, si se borró, el que tenía al abrirse); vacío si no tiene.
   typeId: number
@@ -85,4 +90,9 @@ export function exportUrl(guildId: string, filters: TranscriptFilters, format: E
 
 export function ticketExportUrl(guildId: string, ticketId: number | string, format: ExportFormat) {
   return `/api/guilds/${guildId}/transcripts/${ticketId}/export?format=${format}`
+}
+
+export async function deleteTranscript(guildId: string, ticketId: number): Promise<void> {
+  const res = await fetch(`/api/guilds/${guildId}/transcripts/${ticketId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`DELETE transcript falló: ${res.status}`)
 }

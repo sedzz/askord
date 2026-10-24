@@ -205,3 +205,12 @@ img.dc-avatar {
 .dc-attachment:hover {
   text-decoration: underline;
 }
+
+.dc-badge {
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  background: rgb(255 255 255 / 8%);
+  border-radius: 999px;
+}

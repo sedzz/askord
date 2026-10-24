@@ -11,6 +11,7 @@ import { TranscriptRowsSkeleton } from '../components/skeletons'
 import { formatDate, ticketNumber } from '../lib/format'
 import {
   exportUrl,
+  RETENTION_DAYS,
   transcriptsQuery,
   type ExportFormat,
   type TranscriptFilters,
@@ -96,7 +97,10 @@ function Transcripts() {
           </div>
         )}
       </div>
-      <p>Conversaciones guardadas de los tickets de este servidor.</p>
+      <p>
+        Conversaciones guardadas de los tickets de este servidor. Se eliminan automáticamente a los{' '}
+        {RETENTION_DAYS} días de cerrar el ticket: exporta antes las que quieras conservar.
+      </p>
 
       <div className="filters">
         <label className="filter">
