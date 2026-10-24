@@ -16,6 +16,7 @@ import (
 
 	"github.com/sedzz/askord/internal/auth"
 	"github.com/sedzz/askord/internal/bot"
+	"github.com/sedzz/askord/internal/cleanup"
 	"github.com/sedzz/askord/internal/config"
 	"github.com/sedzz/askord/internal/dashboard"
 	"github.com/sedzz/askord/internal/store"
@@ -55,6 +56,8 @@ func run() error {
 	}
 	defer b.Close() //nolint:errcheck
 
+	go cleanup.Run(ctx, st)
+
 	authH := auth.New(cfg, st)
 	dashH := dashboard.New(cfg, st, b)
 
@@ -90,6 +93,7 @@ func run() error {
 		r.Get("/guilds/{guildID}/transcripts/export", dashH.ExportTranscripts)
 		r.Get("/guilds/{guildID}/transcripts/{ticketID}", dashH.GetTranscript)
 		r.Get("/guilds/{guildID}/transcripts/{ticketID}/export", dashH.ExportTranscript)
+		r.Delete("/guilds/{guildID}/transcripts/{ticketID}", dashH.DeleteTranscript)
 	})
 
 	srv := &http.Server{

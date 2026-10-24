@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -89,6 +90,29 @@ func (h *Handler) GetTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, t)
+}
+
+// DeleteTranscript borra el contenido de un ticket cerrado (mensajes y respuestas).
+func (h *Handler) DeleteTranscript(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+	ticketID, err := strconv.ParseInt(chi.URLParam(r, "ticketID"), 10, 64)
+	if err != nil || ticketID <= 0 {
+		http.NotFound(w, r)
+		return
+	}
+	switch err := h.store.DeleteTranscript(r.Context(), guildID, ticketID); {
+	case errors.Is(err, store.ErrNotFound):
+		http.NotFound(w, r)
+	case err != nil:
+		slog.Error("eliminar transcripcion", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+	default:
+		slog.Info("transcripcion eliminada a mano", "guild", guildID, "ticket", ticketID)
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // ExportTranscript descarga un ticket en txt, json o csv.

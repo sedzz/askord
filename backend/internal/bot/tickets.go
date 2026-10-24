@@ -504,6 +504,10 @@ func (b *Bot) transcribeTicket(i *discordgo.InteractionCreate) {
 		b.replyEphemeral(i, "Este ticket no se puede transcribir.")
 		return
 	}
+	if ticket.TranscriptExpired(time.Now()) {
+		b.replyEphemeral(i, "La transcripción de este ticket ya caducó o se eliminó, así que no se puede guardar de nuevo.")
+		return
+	}
 	settings, err := b.store.GetTicketSettings(ctx, ticket.GuildID)
 	if err != nil || settings == nil {
 		slog.Error("leer configuracion de tickets", "guild", ticket.GuildID, "err", err)
@@ -527,6 +531,8 @@ func (b *Bot) transcribeTicket(i *discordgo.InteractionCreate) {
 	var msg string
 	n, hidden, err := b.saveTranscript(ctx, ticket)
 	switch {
+	case errors.Is(err, store.ErrTranscriptPurged):
+		msg = "La transcripción de este ticket ya se eliminó, así que no se puede guardar de nuevo."
 	case err != nil:
 		slog.Error("guardar transcript", "channel", ticket.ChannelID, "err", err)
 		msg = "No se pudo guardar el transcript. Inténtalo de nuevo."
