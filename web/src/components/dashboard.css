@@ -1,0 +1,109 @@
+/* Dashboard del servidor: tarjetas, vista previa y estadísticas. */
+.dashboard {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard h1 {
+  margin-bottom: 4px;
+}
+
+.card {
+  padding: 16px;
+  background: rgb(255 255 255 / 3%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.card h2 {
+  font-size: 1.0625rem;
+}
+
+.card-sub {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+}
+
+.card .section-head {
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+/* Vista previa del servidor */
+.preview-card {
+  display: grid;
+  gap: 20px;
+}
+
+.preview-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.preview-head img,
+.preview-fallback {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.preview-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-h);
+  background: var(--border);
+}
+
+.preview-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.preview-stats dt {
+  font-size: 0.8125rem;
+}
+
+.preview-stats dd {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 2px 0 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
+/* Estadísticas de tickets */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.stat {
+  display: grid;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 0.8125rem;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  color: var(--text-h);
+}

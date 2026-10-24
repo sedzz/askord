@@ -1,0 +1,34 @@
+.ui-segmented {
+  display: inline-flex;
+  padding: 3px;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.ui-segment {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.ui-segment:hover {
+  color: var(--text-h);
+}
+
+.ui-segment.active {
+  color: var(--text-h);
+  background: rgb(255 255 255 / 10%);
+}
+
+.ui-segment:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
+}

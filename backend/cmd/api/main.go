@@ -74,6 +74,7 @@ func run() error {
 		r.Get("/me", authH.Me)
 		r.Get("/guilds", dashH.Guilds)
 		r.Delete("/guilds/{guildID}", dashH.RemoveGuild)
+		r.Get("/guilds/{guildID}/overview", dashH.Overview)
 		r.Get("/guilds/{guildID}/tickets", dashH.GetTickets)
 		r.Put("/guilds/{guildID}/tickets", dashH.PutTickets)
 		r.Post("/guilds/{guildID}/tickets/category", dashH.CreateCategory)
