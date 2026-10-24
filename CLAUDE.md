@@ -1,0 +1,44 @@
+# CLAUDE.md
+
+Este archivo da orientación a Claude Code (claude.ai/code) para trabajar con el código de este repositorio.
+
+## Resumen
+
+Askord es un bot de tickets para Discord más un panel web para configurarlo. Es un monorepo con un backend en Go (`backend/`, módulo `github.com/sedzz/askord`) que ejecuta el bot de Discord **y** la API HTTP en un solo proceso, y una SPA en React (`web/`). Los textos de cara al usuario, los comentarios y la documentación están en español; mantén esa convención.
+
+## Comandos
+
+Postgres (imagen pgvector) con Docker; copia `.env.example` a `.env` en la raíz del repo y completa las credenciales de Discord (`godotenv` carga `../.env` o `.env`):
+
+```bash
+docker compose up -d
+```
+
+En macOS con Apple silicon se puede usar Apple `container` en vez de Docker: `scripts/db-mac.sh` (idempotente) levanta el mismo Postgres. En Windows sigue siendo `docker compose`.
+
+Backend (ejecutar desde `backend/`):
+
+```bash
+go run ./cmd/api                          # API en :8080 + bot de Discord
+go test ./...
+go test ./internal/bot -run TestName      # un solo test
+```
+
+Frontend (ejecutar desde `web/`, usa pnpm):
+
+```bash
+pnpm dev      # Vite en :5173, con proxy de /api y /auth hacia :8080
+pnpm build    # tsc -b && vite build
+pnpm lint     # oxlint
+```
+
+Las migraciones son SQL en formato goose en `backend/db/migrations/` (`-- +goose Up`). Ningún código Go las aplica; hay que ejecutarlas con la CLI de goose contra `DATABASE_URL`. Las nuevas llevan el siguiente número secuencial.
+
+## Arquitectura
+
+- `backend/cmd/api/main.go` conecta todo: `store` (pool de pgx) → `bot` (discordgo, solo el intent `Guilds`) → handlers de `auth` y `dashboard` sobre un router chi. Rutas públicas: `/healthz`, `/auth/*`; todo lo que cuelga de `/api` pasa por `auth.Require` (cookie de sesión, login con OAuth de Discord).
+- `internal/store` es el único paquete que habla con Postgres; los demás llaman a sus métodos.
+- Los handlers HTTP de `internal/dashboard` tienen tanto `store` como `bot`: la configuración vive en la base de datos, pero las acciones que tocan Discord (crear categoría/rol/canal, publicar el panel de tickets, datos del servidor cacheados ~1 min) pasan por `bot.Bot`.
+- `internal/bot` gestiona los eventos del gateway y las interacciones de Discord: panel con un botón por tipo de ticket, formularios (modales) por tipo, canales/hilos de ticket, cierre y transcripciones (`transcript.go`). El nombre y la configuración del tipo se copian al ticket (migración 00010), así que editar un tipo no reescribe el historial.
+- Las transcripciones (`ticket_messages`) y las respuestas de formulario (`tickets.answers`) se exportan con `internal/dashboard/export.go`. `docs/retencion-de-transcripciones.md` recoge un plan decidido pero aún sin implementar: purgar el contenido 90 días después de `closed_at` con una tarea diaria programada en Go (no `pg_cron`), más un botón de borrado manual. Las filas de tickets se conservan para que las estadísticas del panel no cambien.
+- Frontend: Vite + React 19, TanStack Router (rutas basadas en archivos en `web/src/routes`; `routeTree.gen.ts` es generado, no lo edites) y TanStack Query. Cada archivo `web/src/lib/*.ts` junta un tipo de TypeScript con sus `queryOptions`/fetch para un recurso de la API. Las primitivas reutilizables están en `components/ui/`, cada una con su propio `.css`; `components/discord/` imita la interfaz de Discord para las vistas previas de paneles, tickets y formularios.
