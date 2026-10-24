@@ -1,6 +1,8 @@
 # Retención y borrado de transcripciones
 
-> Estado: **pendiente de hacer**. Es una decisión de diseño ya tomada; aquí queda anotada para implementarla más adelante.
+> Estado: **implementado** (migración 00012, `internal/cleanup`, `store/retention.go`). Quedan pendientes la selección múltiple en la lista y avisar del plazo en los términos o la política de privacidad antes de producción.
+>
+> Diferencias respecto al diseño original: `tickets.content_purged_at` marca los tickets cuyo contenido ya se borró (a mano o por caducidad) y el bot rechaza transcribirlos; el reparto entre copias de la API se hace con `FOR UPDATE SKIP LOCKED` por lote, sin candado asesor; el plazo es `store.TranscriptRetention`; y solo se crea el índice `tickets_retention_idx` (el de la lista queda para cuando haga falta).
 
 ## Decisión
 
