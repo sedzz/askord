@@ -97,3 +97,25 @@
   background: rgb(255 255 255 / 8%);
   border-radius: 999px;
 }
+
+/* Respuestas del formulario, sobre la conversación. */
+.answers {
+  margin: 16px 0;
+}
+
+.answers dl {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.answers dt {
+  font-size: 0.8125rem;
+}
+
+.answers dd {
+  margin: 2px 0 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

@@ -1,5 +1,11 @@
 import { queryOptions } from '@tanstack/react-query'
 
+// Pregunta del formulario que se muestra al abrir un ticket de un tipo.
+export type Question = { label: string; required: boolean; long: boolean }
+
+export const MAX_QUESTIONS = 5
+export const MAX_QUESTION_LABEL = 45
+
 export type TicketType = {
   id: number
   name: string
@@ -9,6 +15,7 @@ export type TicketType = {
   categoryId: string
   staffRoleId: string
   position: number
+  questions: Question[]
 }
 
 export type TicketTypeInput = Omit<TicketType, 'id' | 'position'>

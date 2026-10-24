@@ -29,6 +29,19 @@ type TicketType struct {
 	CategoryID  string `json:"categoryId"`
 	StaffRoleID string `json:"staffRoleId"`
 	Position    int    `json:"position"`
+	// Formulario que se muestra al abrir un ticket de este tipo (puede estar vacío).
+	Questions []Question `json:"questions"`
+}
+
+// MaxQuestions es el máximo de campos de un formulario de Discord.
+const MaxQuestions = 5
+
+// Question es una pregunta del formulario de un tipo.
+type Question struct {
+	Label    string `json:"label"`
+	Required bool   `json:"required"`
+	// Long: respuesta larga (párrafo) en lugar de una línea.
+	Long bool `json:"long"`
 }
 
 // TicketTypeInput son los campos editables de un tipo.
@@ -38,14 +51,26 @@ type TicketTypeInput struct {
 	Description string
 	CategoryID  string
 	StaffRoleID string
+	Questions   []Question
 }
 
-const typeColumns = `id, name, emoji, description, COALESCE(category_id, ''), COALESCE(staff_role_id, ''), position`
+const typeColumns = `id, name, emoji, description, COALESCE(category_id, ''), COALESCE(staff_role_id, ''), position, questions`
 
 func scanType(row pgx.Row) (TicketType, error) {
 	var t TicketType
-	err := row.Scan(&t.ID, &t.Name, &t.Emoji, &t.Description, &t.CategoryID, &t.StaffRoleID, &t.Position)
+	err := row.Scan(&t.ID, &t.Name, &t.Emoji, &t.Description, &t.CategoryID, &t.StaffRoleID, &t.Position, &t.Questions)
+	if t.Questions == nil {
+		t.Questions = []Question{}
+	}
 	return t, err
+}
+
+// questionsOrEmpty evita guardar null: sin preguntas, una lista vacía.
+func questionsOrEmpty(q []Question) []Question {
+	if q == nil {
+		return []Question{}
+	}
+	return q
 }
 
 func nullable(s string) *string {
@@ -97,10 +122,11 @@ func (s *Store) CreateTicketType(ctx context.Context, guildID string, in TicketT
 	}
 
 	t, err := scanType(tx.QueryRow(ctx, `
-		INSERT INTO ticket_types (guild_id, name, emoji, description, category_id, staff_role_id, position)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO ticket_types (guild_id, name, emoji, description, category_id, staff_role_id, position, questions)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING `+typeColumns,
-		guildID, in.Name, in.Emoji, in.Description, nullable(in.CategoryID), nullable(in.StaffRoleID), next))
+		guildID, in.Name, in.Emoji, in.Description, nullable(in.CategoryID), nullable(in.StaffRoleID), next,
+		questionsOrEmpty(in.Questions)))
 	if isUniqueViolation(err) {
 		return TicketType{}, ErrTypeNameTaken
 	}
@@ -113,10 +139,11 @@ func (s *Store) CreateTicketType(ctx context.Context, guildID string, in TicketT
 func (s *Store) UpdateTicketType(ctx context.Context, guildID string, id int64, in TicketTypeInput) (TicketType, error) {
 	t, err := scanType(s.pool.QueryRow(ctx, `
 		UPDATE ticket_types
-		SET name = $3, emoji = $4, description = $5, category_id = $6, staff_role_id = $7
+		SET name = $3, emoji = $4, description = $5, category_id = $6, staff_role_id = $7, questions = $8
 		WHERE guild_id = $1 AND id = $2
 		RETURNING `+typeColumns,
-		guildID, id, in.Name, in.Emoji, in.Description, nullable(in.CategoryID), nullable(in.StaffRoleID)))
+		guildID, id, in.Name, in.Emoji, in.Description, nullable(in.CategoryID), nullable(in.StaffRoleID),
+		questionsOrEmpty(in.Questions)))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TicketType{}, ErrNotFound
 	}

@@ -79,6 +79,13 @@ func writeText(w http.ResponseWriter, transcripts []store.Transcript) {
 			fmt.Fprintf(w, " · Cerrado: %s UTC", t.ClosedAt.UTC().Format(exportTimeLayout))
 		}
 		fmt.Fprint(w, "\n\n")
+		if len(t.Answers) > 0 {
+			fmt.Fprint(w, "Formulario:\n")
+			for _, a := range t.Answers {
+				fmt.Fprintf(w, "  %s: %s\n", a.Question, a.Answer)
+			}
+			fmt.Fprint(w, "\n")
+		}
 		for _, m := range t.Conversation {
 			fmt.Fprintf(w, "[%s] %s: %s\n", m.CreatedAt.UTC().Format(exportTimeLayout), m.AuthorName, m.Content)
 			for _, a := range m.Attachments {

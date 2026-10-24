@@ -24,14 +24,16 @@ const (
 	maxTypeName        = 80
 	maxTypeDescription = 100
 	maxTypeEmoji       = 16 // letras: un emoji con modificadores ocupa varias
+	maxQuestionLabel   = 45 // el límite de la etiqueta de un campo de formulario de Discord
 )
 
 type typeBody struct {
-	Name        string `json:"name"`
-	Emoji       string `json:"emoji"`
-	Description string `json:"description"`
-	CategoryID  string `json:"categoryId"`
-	StaffRoleID string `json:"staffRoleId"`
+	Name        string           `json:"name"`
+	Emoji       string           `json:"emoji"`
+	Description string           `json:"description"`
+	CategoryID  string           `json:"categoryId"`
+	StaffRoleID string           `json:"staffRoleId"`
+	Questions   []store.Question `json:"questions"`
 }
 
 // ListTicketTypes devuelve los tipos del servidor, en su orden.
@@ -170,6 +172,13 @@ func (h *Handler) readTypeInput(w http.ResponseWriter, r *http.Request, guildID 
 		StaffRoleID: body.StaffRoleID,
 	}
 
+	questions, problem := cleanQuestions(body.Questions)
+	if problem != "" {
+		http.Error(w, problem, http.StatusBadRequest)
+		return store.TicketTypeInput{}, false
+	}
+	in.Questions = questions
+
 	fail := func(msg string) (store.TicketTypeInput, bool) {
 		http.Error(w, msg, http.StatusBadRequest)
 		return store.TicketTypeInput{}, false
@@ -224,4 +233,20 @@ func typeError(w http.ResponseWriter, err error) {
 		slog.Error("tipos de ticket", "err", err)
 		http.Error(w, "error interno", http.StatusInternalServerError)
 	}
+}
+
+// cleanQuestions recorta y valida el formulario. Devuelve el motivo si algo no es válido.
+func cleanQuestions(in []store.Question) ([]store.Question, string) {
+	if len(in) > store.MaxQuestions {
+		return nil, "el formulario admite hasta 5 preguntas"
+	}
+	out := make([]store.Question, 0, len(in))
+	for _, q := range in {
+		q.Label = strings.TrimSpace(q.Label)
+		if n := utf8.RuneCountInString(q.Label); n == 0 || n > maxQuestionLabel {
+			return nil, "cada pregunta debe tener entre 1 y 45 caracteres"
+		}
+		out = append(out, q)
+	}
+	return out, ""
 }

@@ -62,31 +62,126 @@ func (b *Bot) TextChannels(guildID string) ([]Option, error) {
 }
 
 func (b *Bot) onInteraction(_ *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.Type != discordgo.InteractionMessageComponent || i.GuildID == "" || i.Member == nil {
+	if i.GuildID == "" || i.Member == nil {
 		return
 	}
-	data := i.MessageComponentData()
-	switch {
-	case data.CustomID == customIDOpenTicket || strings.HasPrefix(data.CustomID, customIDOpenTicket+":"):
-		b.openTicket(i, parseTypeID(data.CustomID))
-	case data.CustomID == customIDSelectType:
-		if len(data.Values) == 1 {
-			id, _ := strconv.ParseInt(data.Values[0], 10, 64)
-			b.openTicket(i, id)
+	switch i.Type {
+	case discordgo.InteractionModalSubmit:
+		// Formulario de un tipo, ya rellenado.
+		if typeID, ok := parseFormID(i.ModalSubmitData().CustomID); ok {
+			b.submitForm(i, typeID)
 		}
-	case data.CustomID == customIDCloseTicket:
-		b.closeTicket(i)
-	case data.CustomID == customIDTranscribeTicket:
-		b.transcribeTicket(i)
-	case data.CustomID == customIDDeleteTicket:
-		b.deleteTicket(i)
+	case discordgo.InteractionMessageComponent:
+		data := i.MessageComponentData()
+		switch {
+		case data.CustomID == customIDOpenTicket || strings.HasPrefix(data.CustomID, customIDOpenTicket+":"):
+			b.openTicket(i, parseTypeID(data.CustomID))
+		case data.CustomID == customIDSelectType:
+			if len(data.Values) == 1 {
+				id, _ := strconv.ParseInt(data.Values[0], 10, 64)
+				b.openTicket(i, id)
+			}
+		case data.CustomID == customIDCloseTicket:
+			b.closeTicket(i)
+		case data.CustomID == customIDTranscribeTicket:
+			b.transcribeTicket(i)
+		case data.CustomID == customIDDeleteTicket:
+			b.deleteTicket(i)
+		}
 	}
 }
 
-// openTicket responde en privado al usuario que pulsó el botón.
-// typeID es el tipo elegido; 0 en los paneles antiguos, que abren el primer tipo.
+// ticketRequest reúne lo necesario para abrir un ticket de un tipo.
+type ticketRequest struct {
+	types       []store.TicketType
+	ticketType  store.TicketType
+	categoryID  string
+	staffRoleID string
+}
+
+// prepareTicket comprueba que el usuario puede abrir un ticket de ese tipo. Si no, devuelve
+// el mensaje que se le debe mostrar.
+func (b *Bot) prepareTicket(ctx context.Context, guildID string, user *discordgo.User, typeID int64) (*ticketRequest, string) {
+	settings, err := b.store.GetTicketSettings(ctx, guildID)
+	if err != nil {
+		slog.Error("leer configuracion de tickets", "guild", guildID, "err", err)
+		return nil, msgInternal
+	}
+	if settings == nil {
+		return nil, msgNotConfigured
+	}
+
+	types, err := b.store.ListTicketTypes(ctx, guildID)
+	if err != nil {
+		slog.Error("listar tipos de ticket", "guild", guildID, "err", err)
+		return nil, msgInternal
+	}
+	ticketType, ok := pickType(types, typeID)
+	if !ok {
+		return nil, "Este tipo de ticket ya no existe. Avisa al staff para que actualice el panel."
+	}
+
+	existing, err := b.store.OpenTicketByUser(ctx, guildID, user.ID, ticketType.ID)
+	if err != nil {
+		slog.Error("buscar ticket abierto", "guild", guildID, "err", err)
+		return nil, msgInternal
+	}
+	if existing != nil {
+		if b.channelExists(existing.ChannelID) {
+			return nil, fmt.Sprintf("Ya tienes un ticket abierto%s: <#%s>", ofType(ticketType, len(types)), existing.ChannelID)
+		}
+		// Borraron el canal a mano: se cierra el ticket y se deja abrir otro.
+		if err := b.store.CloseTicketByChannel(ctx, existing.ChannelID); err != nil {
+			slog.Error("cerrar ticket huerfano", "err", err)
+			return nil, msgInternal
+		}
+	}
+
+	return &ticketRequest{
+		types:      types,
+		ticketType: ticketType,
+		// Cada tipo lleva su categoría y su equipo; si no los tiene, los del servidor.
+		categoryID:  cmp.Or(ticketType.CategoryID, settings.CategoryID),
+		staffRoleID: cmp.Or(ticketType.StaffRoleID, settings.StaffRoleID),
+	}, ""
+}
+
+// openTicket atiende el botón del panel. Si el tipo tiene formulario, lo abre; si no, crea el
+// ticket. typeID es el tipo elegido; 0 en los paneles antiguos, que abren el primer tipo.
 func (b *Bot) openTicket(i *discordgo.InteractionCreate, typeID int64) {
-	// Crear el canal puede tardar más que los 3 s que da Discord: se difiere la respuesta.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Antes de pedir nada se comprueba que puede abrirlo: no tiene sentido rellenar un
+	// formulario para recibir un "ya tienes un ticket".
+	req, msg := b.prepareTicket(ctx, i.GuildID, i.Member.User, typeID)
+	if req == nil {
+		b.replyEphemeral(i, msg)
+		return
+	}
+
+	if len(req.ticketType.Questions) > 0 {
+		err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: formModal(req.ticketType),
+		})
+		if err != nil {
+			slog.Error("abrir formulario", "err", err)
+		}
+		return
+	}
+	b.deferAndCreate(i, typeID, nil)
+}
+
+// submitForm atiende el formulario enviado: lee las respuestas y crea el ticket.
+func (b *Bot) submitForm(i *discordgo.InteractionCreate, typeID int64) {
+	b.deferAndCreate(i, typeID, formAnswers)
+}
+
+// deferAndCreate responde en privado y crea el ticket. Crear el canal puede tardar más que los
+// 3 s que da Discord, por eso se difiere la respuesta. answers lee las respuestas del
+// formulario, si lo hubo.
+func (b *Bot) deferAndCreate(i *discordgo.InteractionCreate, typeID int64, answers func(*discordgo.InteractionCreate, []store.Question) []store.Answer) {
 	err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
@@ -96,54 +191,27 @@ func (b *Bot) openTicket(i *discordgo.InteractionCreate, typeID int64) {
 		return
 	}
 
-	msg := b.createTicket(i.GuildID, i.Member.User, typeID)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	msg := msgInternal
+	if req, problem := b.prepareTicket(ctx, i.GuildID, i.Member.User, typeID); req == nil {
+		msg = problem
+	} else {
+		var given []store.Answer
+		if answers != nil {
+			given = answers(i, req.ticketType.Questions)
+		}
+		msg = b.createTicket(ctx, i.GuildID, i.Member.User, req, given)
+	}
 	if _, err := b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &msg}); err != nil {
 		slog.Error("editar respuesta", "err", err)
 	}
 }
 
 // createTicket crea el canal privado y devuelve el mensaje para el usuario.
-func (b *Bot) createTicket(guildID string, user *discordgo.User, typeID int64) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	settings, err := b.store.GetTicketSettings(ctx, guildID)
-	if err != nil {
-		slog.Error("leer configuracion de tickets", "guild", guildID, "err", err)
-		return msgInternal
-	}
-	if settings == nil {
-		return msgNotConfigured
-	}
-
-	types, err := b.store.ListTicketTypes(ctx, guildID)
-	if err != nil {
-		slog.Error("listar tipos de ticket", "guild", guildID, "err", err)
-		return msgInternal
-	}
-	ticketType, ok := pickType(types, typeID)
-	if !ok {
-		return "Este tipo de ticket ya no existe. Avisa al staff para que actualice el panel."
-	}
-	// Cada tipo lleva su categoría y su equipo; si no los tiene, los del servidor.
-	categoryID := cmp.Or(ticketType.CategoryID, settings.CategoryID)
-	staffRoleID := cmp.Or(ticketType.StaffRoleID, settings.StaffRoleID)
-
-	existing, err := b.store.OpenTicketByUser(ctx, guildID, user.ID, ticketType.ID)
-	if err != nil {
-		slog.Error("buscar ticket abierto", "guild", guildID, "err", err)
-		return msgInternal
-	}
-	if existing != nil {
-		if b.channelExists(existing.ChannelID) {
-			return fmt.Sprintf("Ya tienes un ticket abierto%s: <#%s>", ofType(ticketType, len(types)), existing.ChannelID)
-		}
-		// Borraron el canal a mano: se cierra el ticket y se deja abrir otro.
-		if err := b.store.CloseTicketByChannel(ctx, existing.ChannelID); err != nil {
-			slog.Error("cerrar ticket huerfano", "err", err)
-			return msgInternal
-		}
-	}
+func (b *Bot) createTicket(ctx context.Context, guildID string, user *discordgo.User, req *ticketRequest, answers []store.Answer) string {
+	ticketType, categoryID, staffRoleID := req.ticketType, req.categoryID, req.staffRoleID
 
 	number, err := b.store.NextTicketNumber(ctx, guildID)
 	if err != nil {
@@ -173,7 +241,7 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User, typeID int64) s
 
 	err = b.store.CreateTicket(ctx, store.Ticket{
 		GuildID: guildID, Number: number, ChannelID: channel.ID, OpenerID: user.ID, TypeID: ticketType.ID,
-		TypeName: ticketType.Name, TypeEmoji: ticketType.Emoji,
+		TypeName: ticketType.Name, TypeEmoji: ticketType.Emoji, Answers: answers,
 	})
 	if err != nil {
 		_, _ = b.session.ChannelDelete(channel.ID)
@@ -187,7 +255,8 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User, typeID int64) s
 	_, err = b.session.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
 		Content: fmt.Sprintf(
 			"Hola <@%s>, gracias por abrir un ticket%s. Cuéntanos tu problema y <@&%s> te atenderá en cuanto pueda.",
-			user.ID, ofType(ticketType, len(types)), staffRoleID),
+			user.ID, ofType(ticketType, len(req.types)), staffRoleID),
+		Embeds: answersEmbed(answers),
 		AllowedMentions: &discordgo.MessageAllowedMentions{
 			Users: []string{user.ID},
 			Roles: []string{staffRoleID},

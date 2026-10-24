@@ -22,6 +22,14 @@ type Ticket struct {
 	// Copia del nombre y el emoji del tipo al abrirse, para el historial.
 	TypeName  string
 	TypeEmoji string
+	// Respuestas al formulario del tipo, si lo tenía.
+	Answers []Answer
+}
+
+// Answer es la respuesta a una pregunta del formulario, con la pregunta tal como era.
+type Answer struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
 }
 
 func (s *Store) SavePanel(ctx context.Context, guildID, channelID, messageID string) error {
@@ -44,9 +52,9 @@ func (s *Store) NextTicketNumber(ctx context.Context, guildID string) (int, erro
 // CreateTicket guarda el ticket; devuelve ErrTicketExists si el usuario ya tiene uno abierto.
 func (s *Store) CreateTicket(ctx context.Context, t Ticket) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO tickets (guild_id, number, channel_id, opener_id, type_id, type_name, type_emoji)
-		VALUES ($1, $2, $3, $4, NULLIF($5::bigint, 0), $6, $7)`,
-		t.GuildID, t.Number, t.ChannelID, t.OpenerID, t.TypeID, t.TypeName, t.TypeEmoji)
+		INSERT INTO tickets (guild_id, number, channel_id, opener_id, type_id, type_name, type_emoji, answers)
+		VALUES ($1, $2, $3, $4, NULLIF($5::bigint, 0), $6, $7, $8)`,
+		t.GuildID, t.Number, t.ChannelID, t.OpenerID, t.TypeID, t.TypeName, t.TypeEmoji, answersOrEmpty(t.Answers))
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "tickets_one_open_per_user_type" {
 		return ErrTicketExists
@@ -168,4 +176,12 @@ func (s *Store) DeleteGuildData(ctx context.Context, guildID string) error {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// answersOrEmpty evita guardar null: sin respuestas, una lista vacía.
+func answersOrEmpty(a []Answer) []Answer {
+	if a == nil {
+		return []Answer{}
+	}
+	return a
 }

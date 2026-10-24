@@ -1,5 +1,8 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 
+// Respuesta al formulario del tipo, con la pregunta tal como era.
+export type Answer = { question: string; answer: string }
+
 export type TranscriptSummary = {
   id: number
   number: number
@@ -13,6 +16,7 @@ export type TranscriptSummary = {
   typeId: number
   typeName: string
   typeEmoji: string
+  answers: Answer[]
   // Primer mensaje con texto de quien abrió el ticket, recortado.
   preview: string
 }

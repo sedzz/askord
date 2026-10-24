@@ -111,3 +111,44 @@
 .emoji-input {
   text-align: center;
 }
+
+/* Editor del formulario de un tipo */
+.questions {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.questions legend {
+  padding: 0 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.questions-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.question {
+  display: grid;
+  gap: 8px;
+}
+
+.question-options {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.question-options .icon-btn {
+  margin-left: auto;
+}
+
+.questions > .ui-button {
+  justify-self: start;
+}

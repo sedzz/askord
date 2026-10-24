@@ -28,6 +28,8 @@ type TranscriptSummary struct {
 	TypeID    int64  `json:"typeId"`
 	TypeName  string `json:"typeName"`
 	TypeEmoji string `json:"typeEmoji"`
+	// Respuestas que dio quien abrió el ticket al formulario de su tipo.
+	Answers []Answer `json:"answers"`
 	// Primer mensaje con texto de quien abrió el ticket (recortado): de qué se habló.
 	Preview string `json:"preview"`
 }
@@ -71,7 +73,7 @@ const transcriptColumns = `
 	COALESCE((SELECT left(m.content, 200) FROM ticket_messages m
 	          WHERE m.ticket_id = t.id AND m.author_id = t.opener_id AND m.content <> ''
 	          ORDER BY m.created_at LIMIT 1), ''),
-	COALESCE(t.type_id, 0), COALESCE(ty.name, t.type_name), COALESCE(ty.emoji, t.type_emoji)`
+	COALESCE(t.type_id, 0), COALESCE(ty.name, t.type_name), COALESCE(ty.emoji, t.type_emoji), t.answers`
 
 // ListTranscripts devuelve los tickets con transcripción, del más reciente al más antiguo.
 // ticketID a 0 no filtra por ticket.
@@ -93,7 +95,7 @@ func (s *Store) ListTranscripts(ctx context.Context, guildID string, f Transcrip
 	for rows.Next() {
 		var t TranscriptSummary
 		if err := rows.Scan(&t.ID, &t.Number, &t.OpenerID, &t.OpenerName, &t.Status,
-			&t.CreatedAt, &t.ClosedAt, &t.Messages, &t.Preview, &t.TypeID, &t.TypeName, &t.TypeEmoji); err != nil {
+			&t.CreatedAt, &t.ClosedAt, &t.Messages, &t.Preview, &t.TypeID, &t.TypeName, &t.TypeEmoji, &t.Answers); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

@@ -66,6 +66,20 @@ function TranscriptDetail() {
         {t.closedAt && ` · cerrado el ${formatDateTime(t.closedAt)}`}
       </p>
 
+      {t.answers.length > 0 && (
+        <section className="card answers">
+          <h2>Formulario</h2>
+          <dl>
+            {t.answers.map((a, i) => (
+              <div key={i}>
+                <dt>{a.question}</dt>
+                <dd>{a.answer}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
       <DiscordFrame channel={{ name: `ticket-${number}`, locked: true }}>
         <div className="conversation">
           {t.conversation.map((m) => (

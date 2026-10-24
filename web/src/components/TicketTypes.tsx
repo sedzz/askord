@@ -5,15 +5,19 @@ import { toast } from '../lib/toast'
 import {
   createTicketType,
   deleteTicketType,
+  MAX_QUESTION_LABEL,
+  MAX_QUESTIONS,
   MAX_TICKET_TYPES,
   reorderTicketTypes,
   ticketTypesQuery,
   updateTicketType,
   type TicketType,
+  type Question,
   type TicketTypeInput,
 } from '../lib/ticketTypes'
 import './ticket-types.css'
 import { Button } from './ui/Button'
+import { Checkbox } from './ui/Checkbox'
 import { Dialog } from './ui/Dialog'
 import { FormField } from './ui/FormField'
 import { Input } from './ui/Input'
@@ -98,10 +102,15 @@ export function TicketTypes({ guildId }: { guildId: string }) {
                 <div className="type-main">
                   <strong>{t.name}</strong>
                   {t.description && <span className="type-desc">{t.description}</span>}
-                  {(category || role) && (
+                  {(category || role || t.questions.length > 0) && (
                     <span className="type-chips">
                       {category && <span className="chip">{category}</span>}
                       {role && <span className="chip">@{role}</span>}
+                      {t.questions.length > 0 && (
+                        <span className="chip">
+                          {t.questions.length} {t.questions.length === 1 ? 'pregunta' : 'preguntas'}
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -172,6 +181,7 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
     description: current?.description ?? '',
     categoryId: current?.categoryId || config.settings?.categoryId || '',
     staffRoleId: current?.staffRoleId || config.settings?.staffRoleId || '',
+    questions: current?.questions ?? [],
   })
   const set = <K extends keyof TicketTypeInput>(key: K, value: TicketTypeInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -196,6 +206,7 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
       open={editing !== null}
       onOpenChange={(open) => !open && onClose()}
       title={current ? 'Editar tipo' : 'Nuevo tipo de ticket'}
+      size="lg"
     >
       <form className="type-form" onSubmit={onSubmit}>
         <div className="type-form-row">
@@ -262,6 +273,8 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
           )}
         </FormField>
 
+        <QuestionsEditor questions={form.questions} onChange={(q) => set('questions', q)} />
+
         {save.isError && <small className="error">{save.error.message}</small>}
 
         <div className="tour-actions">
@@ -271,7 +284,12 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
           <Button
             type="submit"
             loading={save.isPending}
-            disabled={!form.name.trim() || !form.categoryId || !form.staffRoleId}
+            disabled={
+              !form.name.trim() ||
+              !form.categoryId ||
+              !form.staffRoleId ||
+              form.questions.some((q) => !q.label.trim())
+            }
           >
             {save.isPending ? 'Guardando' : current ? 'Guardar' : 'Crear tipo'}
           </Button>
@@ -325,5 +343,64 @@ function RemoveDialog({
         </Button>
       </div>
     </Dialog>
+  )
+}
+
+// Formulario que ve quien abre un ticket de este tipo: hasta cinco preguntas.
+function QuestionsEditor({
+  questions,
+  onChange,
+}: {
+  questions: Question[]
+  onChange: (questions: Question[]) => void
+}) {
+  const update = (index: number, patch: Partial<Question>) =>
+    onChange(questions.map((q, i) => (i === index ? { ...q, ...patch } : q)))
+
+  return (
+    <fieldset className="questions">
+      <legend>Formulario</legend>
+      <p className="questions-hint">
+        Preguntas que se hacen al abrir el ticket. Las respuestas aparecen en el canal del ticket y
+        en su transcripción. Déjalo vacío para abrir el ticket directamente.
+      </p>
+
+      {questions.map((q, i) => (
+        <div key={i} className="question">
+          <Input
+            value={q.label}
+            onChange={(e) => update(i, { label: e.target.value })}
+            placeholder="Por ejemplo: ¿Cuál es el número de tu pedido?"
+            maxLength={MAX_QUESTION_LABEL}
+            aria-label={`Pregunta ${i + 1}`}
+          />
+          <div className="question-options">
+            <Checkbox checked={q.required} onChange={(v) => update(i, { required: v })}>
+              Obligatoria
+            </Checkbox>
+            <Checkbox checked={q.long} onChange={(v) => update(i, { long: v })}>
+              Respuesta larga
+            </Checkbox>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Quitar la pregunta ${i + 1}`}
+              onClick={() => onChange(questions.filter((_, j) => j !== i))}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {questions.length < MAX_QUESTIONS && (
+        <Button
+          variant="outline"
+          onClick={() => onChange([...questions, { label: '', required: true, long: false }])}
+        >
+          Añadir pregunta
+        </Button>
+      )}
+    </fieldset>
   )
 }
