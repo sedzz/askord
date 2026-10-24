@@ -48,6 +48,7 @@ export function AppShell({ activeGuildId, children }: Props) {
     <div className="app">
       <header className="topbar">
         <Link to="/" className="brand">
+          <img src="/askord.png" alt="" width={64} height={64} draggable={false} />
           Askord
         </Link>
         {user && (

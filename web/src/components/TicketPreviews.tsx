@@ -13,7 +13,7 @@ import {
 // Los textos deben coincidir con los que envía el bot (backend/internal/bot/tickets.go).
 
 // Avatar del bot, en public/.
-const BOT_AVATAR = '/askord.png'
+const BOT_AVATAR = '/askord-avatar.png'
 
 function Preview({ children }: { children: ReactNode }) {
   return <div className="preview">{children}</div>

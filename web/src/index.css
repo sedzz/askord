@@ -235,9 +235,19 @@ h2 {
 }
 
 .brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-h);
+}
+
+/* El logo es parte de la interfaz: no se selecciona ni se arrastra. */
+.brand img {
+  border-radius: 10px;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .rail {
