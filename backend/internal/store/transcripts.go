@@ -23,7 +23,9 @@ type TranscriptSummary struct {
 	Status     string     `json:"status"`
 	CreatedAt  time.Time  `json:"createdAt"`
 	ClosedAt   *time.Time `json:"closedAt"`
-	Messages   int        `json:"messages"`
+	// Cuándo se borrará el contenido solo (cierre + plazo de retención); nil si sigue abierto.
+	ExpiresAt *time.Time `json:"expiresAt"`
+	Messages  int        `json:"messages"`
 	// Tipo del ticket: el actual si sigue existiendo y, si no, el que tenía al abrirse.
 	TypeID    int64  `json:"typeId"`
 	TypeName  string `json:"typeName"`
@@ -97,6 +99,10 @@ func (s *Store) ListTranscripts(ctx context.Context, guildID string, f Transcrip
 		if err := rows.Scan(&t.ID, &t.Number, &t.OpenerID, &t.OpenerName, &t.Status,
 			&t.CreatedAt, &t.ClosedAt, &t.Messages, &t.Preview, &t.TypeID, &t.TypeName, &t.TypeEmoji, &t.Answers); err != nil {
 			return nil, err
+		}
+		if t.ClosedAt != nil {
+			exp := t.ClosedAt.Add(TranscriptRetention)
+			t.ExpiresAt = &exp
 		}
 		out = append(out, t)
 	}

@@ -11,6 +11,12 @@ import (
 
 var ErrTicketExists = errors.New("el usuario ya tiene un ticket abierto")
 
+// ErrTranscriptPurged indica que el contenido del ticket ya se borró y no se puede volver a guardar.
+var ErrTranscriptPurged = errors.New("el contenido del ticket ya se eliminó")
+
+// TranscriptRetention es cuánto se conserva el contenido de un ticket desde que se cierra.
+const TranscriptRetention = 90 * 24 * time.Hour
+
 type Ticket struct {
 	ID        int64
 	GuildID   string
@@ -24,6 +30,18 @@ type Ticket struct {
 	TypeEmoji string
 	// Respuestas al formulario del tipo, si lo tenía.
 	Answers []Answer
+	// Cierre del ticket (nil si sigue abierto) y si su contenido ya se borró.
+	ClosedAt        *time.Time
+	ContentPurgedAt *time.Time
+}
+
+// TranscriptExpired indica si el contenido del ticket ya no se puede guardar: se borró o
+// pasó el plazo de retención (aunque la tarea de limpieza aún no haya llegado a él).
+func (t Ticket) TranscriptExpired(now time.Time) bool {
+	if t.ContentPurgedAt != nil {
+		return true
+	}
+	return t.ClosedAt != nil && now.Sub(*t.ClosedAt) >= TranscriptRetention
 }
 
 // Answer es la respuesta a una pregunta del formulario, con la pregunta tal como era.
@@ -94,9 +112,9 @@ func (s *Store) TicketByChannel(ctx context.Context, channelID string) (*Ticket,
 		status string
 	)
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0), status FROM tickets
-		WHERE channel_id = $1`, channelID).
-		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID, &status)
+		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0), status, closed_at, content_purged_at
+		FROM tickets WHERE channel_id = $1`, channelID).
+		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID, &status, &t.ClosedAt, &t.ContentPurgedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", nil
 	}
@@ -126,10 +144,30 @@ type TicketMessage struct {
 }
 
 // SaveTicketMessages guarda (o actualiza, si se editaron) los mensajes del transcript.
+// Devuelve ErrTranscriptPurged si el contenido del ticket ya se borró.
 func (s *Store) SaveTicketMessages(ctx context.Context, ticketID int64, msgs []TicketMessage) error {
 	if len(msgs) == 0 {
 		return nil
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// FOR SHARE bloquea la fila frente a una purga simultánea hasta confirmar.
+	var purged bool
+	err = tx.QueryRow(ctx, `SELECT content_purged_at IS NOT NULL FROM tickets WHERE id = $1 FOR SHARE`, ticketID).Scan(&purged)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if purged {
+		return ErrTranscriptPurged
+	}
+
 	batch := &pgx.Batch{}
 	for _, m := range msgs {
 		attachments := m.Attachments
@@ -145,14 +183,17 @@ func (s *Store) SaveTicketMessages(ctx context.Context, ticketID int64, msgs []T
 			m.ID, ticketID, m.AuthorID, m.AuthorName, m.AuthorAvatar, m.Content, attachments, m.CreatedAt)
 	}
 
-	results := s.pool.SendBatch(ctx, batch)
-	defer results.Close()
+	results := tx.SendBatch(ctx, batch)
 	for range msgs {
 		if _, err := results.Exec(); err != nil {
+			results.Close() //nolint:errcheck
 			return err
 		}
 	}
-	return nil
+	if err := results.Close(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // DeleteGuildData borra todo lo de un servidor: configuración, tickets y, en cascada,
