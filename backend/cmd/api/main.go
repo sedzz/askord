@@ -15,7 +15,9 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/sedzz/askord/internal/auth"
+	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/config"
+	"github.com/sedzz/askord/internal/dashboard"
 	"github.com/sedzz/askord/internal/store"
 )
 
@@ -44,7 +46,17 @@ func run() error {
 	}
 	defer st.Close()
 
+	b, err := bot.New(cfg.DiscordBotToken, st)
+	if err != nil {
+		return err
+	}
+	if err := b.Start(); err != nil {
+		return err
+	}
+	defer b.Close() //nolint:errcheck
+
 	authH := auth.New(cfg, st)
+	dashH := dashboard.New(cfg, st)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
@@ -60,6 +72,7 @@ func run() error {
 	r.Route("/api", func(r chi.Router) {
 		r.Use(authH.Require)
 		r.Get("/me", authH.Me)
+		r.Get("/guilds", dashH.Guilds)
 	})
 
 	srv := &http.Server{

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -44,7 +45,7 @@ func New(cfg config.Config, s *store.Store) *Handler {
 			ClientID:     cfg.DiscordClientID,
 			ClientSecret: cfg.DiscordClientSecret,
 			RedirectURL:  cfg.DiscordRedirectURL,
-			Scopes:       []string{"identify"},
+			Scopes:       []string{"identify", "guilds"},
 			Endpoint:     discordEndpoint,
 		},
 	}
@@ -84,7 +85,8 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := fetchDiscordUser(r.Context(), h.oauth.Client(r.Context(), tok))
+	client := h.oauth.Client(r.Context(), tok)
+	user, err := fetchDiscordUser(r.Context(), client)
 	if err != nil {
 		slog.Error("obtener usuario de discord", "err", err)
 		http.Error(w, "no se pudo iniciar sesion", http.StatusBadGateway)
@@ -94,6 +96,13 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		slog.Error("guardar usuario", "err", err)
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
+	}
+
+	// La lista de servidores se guarda en cada login; si falla, el login sigue.
+	if guilds, err := fetchManageableGuilds(r.Context(), client); err != nil {
+		slog.Error("obtener servidores del usuario", "err", err)
+	} else if err := h.store.ReplaceUserGuilds(r.Context(), user.ID, guilds); err != nil {
+		slog.Error("guardar servidores del usuario", "err", err)
 	}
 
 	token, err := randomToken()
@@ -186,6 +195,48 @@ func fetchDiscordUser(ctx context.Context, client *http.Client) (store.User, err
 		return store.User{}, err
 	}
 	return store.User{ID: body.ID, Username: body.Username, Avatar: body.Avatar}, nil
+}
+
+const (
+	permAdministrator = 1 << 3
+	permManageGuild   = 1 << 5
+)
+
+// fetchManageableGuilds devuelve los servidores donde el usuario es dueño o
+// tiene Administrador / Gestionar servidor.
+func fetchManageableGuilds(ctx context.Context, client *http.Client) ([]store.UserGuild, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://discord.com/api/users/@me/guilds", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("discord respondio %d", resp.StatusCode)
+	}
+
+	var body []struct {
+		ID          string      `json:"id"`
+		Name        string      `json:"name"`
+		Icon        *string     `json:"icon"`
+		Owner       bool        `json:"owner"`
+		Permissions json.Number `json:"permissions"` // string o número según la versión de la API
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, err
+	}
+
+	guilds := []store.UserGuild{}
+	for _, g := range body {
+		perms, _ := strconv.ParseUint(g.Permissions.String(), 10, 64)
+		if g.Owner || perms&(permAdministrator|permManageGuild) != 0 {
+			guilds = append(guilds, store.UserGuild{ID: g.ID, Name: g.Name, Icon: g.Icon, Owner: g.Owner})
+		}
+	}
+	return guilds, nil
 }
 
 func (h *Handler) setCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {

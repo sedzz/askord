@@ -10,6 +10,7 @@ type Config struct {
 	DatabaseURL         string
 	DiscordClientID     string
 	DiscordClientSecret string
+	DiscordBotToken     string
 	DiscordRedirectURL  string
 	FrontendURL         string
 	CookieSecure        bool
@@ -21,6 +22,7 @@ func Load() (Config, error) {
 		DatabaseURL:         os.Getenv("DATABASE_URL"),
 		DiscordClientID:     os.Getenv("DISCORD_CLIENT_ID"),
 		DiscordClientSecret: os.Getenv("DISCORD_CLIENT_SECRET"),
+		DiscordBotToken:     os.Getenv("DISCORD_BOT_TOKEN"),
 		DiscordRedirectURL:  get("DISCORD_REDIRECT_URL", "http://localhost:8080/auth/callback"),
 		FrontendURL:         get("FRONTEND_URL", "http://localhost:5173"),
 		CookieSecure:        os.Getenv("COOKIE_SECURE") == "true",
@@ -30,6 +32,7 @@ func Load() (Config, error) {
 		"DATABASE_URL":          c.DatabaseURL,
 		"DISCORD_CLIENT_ID":     c.DiscordClientID,
 		"DISCORD_CLIENT_SECRET": c.DiscordClientSecret,
+		"DISCORD_BOT_TOKEN":     c.DiscordBotToken,
 	} {
 		if v == "" {
 			return Config{}, fmt.Errorf("falta la variable de entorno %s", name)

@@ -98,3 +98,61 @@ button:disabled {
 .error {
   color: #dc2626;
 }
+
+h2 {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 1.1rem;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.guilds {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.guild {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.guild img,
+.guild-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.guild-fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: var(--text-h);
+  background: var(--border);
+}
+
+.guild-name {
+  flex: 1;
+  color: var(--text-h);
+}
+
+.badge {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 999px;
+}
