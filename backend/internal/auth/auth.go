@@ -128,7 +128,7 @@ func (h *Handler) Require(next http.Handler) http.Handler {
 			http.Error(w, "no autenticado", http.StatusUnauthorized)
 			return
 		}
-		u, err := h.store.UserBySession(r.Context(), hash(c.Value))
+		u, expires, err := h.store.UserBySession(r.Context(), hash(c.Value))
 		if errors.Is(err, store.ErrNotFound) {
 			http.Error(w, "no autenticado", http.StatusUnauthorized)
 			return
@@ -137,6 +137,16 @@ func (h *Handler) Require(next http.Handler) http.Handler {
 			slog.Error("cargar sesion", "err", err)
 			http.Error(w, "error interno", http.StatusInternalServerError)
 			return
+		}
+
+		// Sesión deslizante: se renueva solo cuando queda menos de la mitad,
+		// para no escribir en la base de datos en cada petición.
+		if time.Until(expires) < sessionTTL/2 {
+			if err := h.store.ExtendSession(r.Context(), hash(c.Value), time.Now().Add(sessionTTL)); err != nil {
+				slog.Error("extender sesion", "err", err)
+			} else {
+				h.setCookie(w, sessionCookie, c.Value, sessionTTL)
+			}
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, u)))
 	})
