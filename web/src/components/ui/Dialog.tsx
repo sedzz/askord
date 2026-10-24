@@ -7,6 +7,8 @@ type Props = {
   title: string
   description?: string
   size?: 'md' | 'lg'
+  // Oculta el título a la vista; sigue ahí para los lectores de pantalla.
+  hideTitle?: boolean
   // Con false no se puede cerrar con Esc, la × ni pulsando fuera: solo lo cierra el padre.
   dismissible?: boolean
   children: ReactNode
@@ -19,6 +21,7 @@ export function Dialog({
   title,
   description,
   size = 'md',
+  hideTitle = false,
   dismissible = true,
   children,
 }: Props) {
@@ -55,7 +58,7 @@ export function Dialog({
       }}
     >
       <div className="ui-dialog-body">
-        <header className="ui-dialog-header">
+        <header className={hideTitle ? 'ui-dialog-header visually-hidden' : 'ui-dialog-header'}>
           <h2 id={titleId}>{title}</h2>
           {dismissible && (
             <button

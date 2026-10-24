@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { guildIconUrl, guildsQuery } from '../lib/guilds'
+import { setPendingInvite } from '../lib/pendingInvite'
 import { buttonClassName } from './ui/button-styles'
 import './ui/button.css'
 import { Dialog } from './ui/Dialog'
@@ -48,6 +49,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
                 <a
                   className={buttonClassName()}
                   href={g.inviteUrl}
+                  onClick={() => setPendingInvite(g.id)}
                   target="_blank"
                   rel="noreferrer"
                 >

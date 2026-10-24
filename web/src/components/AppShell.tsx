@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { avatarUrl, logout, meQuery } from '../lib/auth'
+import { guildsQuery } from '../lib/guilds'
+import { setPendingInvite, usePendingInvite } from '../lib/pendingInvite'
 import { AddServerDialog } from './AddServerDialog'
 import { ServerRail } from './ServerRail'
 import { Button } from './ui/Button'
@@ -27,6 +29,19 @@ export function AppShell({ activeGuildId, children }: Props) {
   })
 
   const [addOpen, setAddOpen] = useState(false)
+
+  // Tras pulsar "Añadir bot" se consulta cada pocos segundos hasta que el bot aparece en
+  // el servidor; entonces se lleva al usuario a él (donde se abre el tour de configuración).
+  const pendingInvite = usePendingInvite()
+  const { data: guilds } = useQuery({
+    ...guildsQuery,
+    refetchInterval: pendingInvite ? 3000 : false,
+  })
+  useEffect(() => {
+    if (!pendingInvite || !guilds?.some((g) => g.id === pendingInvite && g.botInstalled)) return
+    setPendingInvite(null)
+    void navigate({ to: '/guilds/$guildId', params: { guildId: pendingInvite } })
+  }, [pendingInvite, guilds, navigate])
   const avatar = user ? avatarUrl(user) : null
 
   return (

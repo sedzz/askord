@@ -28,10 +28,10 @@ export const Route = createFileRoute('/guilds/$guildId')({
 
 function GuildPage() {
   const { guildId } = Route.useParams()
+  // key: al cambiar de servidor se reinicia todo (formulario y diálogos abiertos).
   return (
-    <AppShell activeGuildId={guildId}>
-      {/* key: al cambiar de servidor se reinicia el formulario con sus datos. */}
-      <GuildSettings key={guildId} guildId={guildId} />
+    <AppShell key={guildId} activeGuildId={guildId}>
+      <GuildSettings guildId={guildId} />
     </AppShell>
   )
 }
@@ -65,7 +65,7 @@ function GuildSettings({ guildId }: { guildId: string }) {
             disabled={!setup.categoryId || !setup.staffRoleId}
             loading={save.isPending}
           >
-            {save.isPending ? 'Guardando…' : 'Guardar'}
+            {save.isPending ? 'Guardando' : 'Guardar'}
           </Button>
           {save.isSuccess && <span className="saved">Guardado</span>}
           {save.isError && <span className="error">No se pudo guardar</span>}

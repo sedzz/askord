@@ -338,22 +338,6 @@ h2 {
   margin: 0;
 }
 
-.tour-summary {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 16px;
-  margin: 0;
-}
-
-.tour-summary dt {
-  color: var(--text);
-}
-
-.tour-summary dd {
-  margin: 0;
-  color: var(--text-h);
-}
-
 .tour-actions {
   display: flex;
   justify-content: space-between;
@@ -387,4 +371,26 @@ h2 {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+/* Pantalla final del tour. */
+.tour-done {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 24px 0 8px;
+  text-align: center;
+}
+
+.tour-done-emoji {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.tour-done h3 {
+  font-size: 1.5rem;
+}
+
+.tour-done .ui-button {
+  margin-top: 12px;
 }

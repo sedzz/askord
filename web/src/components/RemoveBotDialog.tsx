@@ -43,7 +43,7 @@ export function RemoveBotDialog({ guildId, open, onOpenChange }: Props) {
           Cancelar
         </Button>
         <Button variant="danger" onClick={() => remove.mutate()} loading={remove.isPending}>
-          {remove.isPending ? 'Quitando…' : 'Quitar bot y borrar datos'}
+          {remove.isPending ? 'Quitando' : 'Quitar bot y borrar datos'}
         </Button>
       </div>
     </Dialog>

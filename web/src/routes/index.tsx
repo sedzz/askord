@@ -6,6 +6,7 @@ import { Spinner } from '../components/ui/Spinner'
 import { buttonClassName } from '../components/ui/button-styles'
 import { requireUser } from '../lib/auth'
 import { guildIconUrl, guildsQuery, type Guild } from '../lib/guilds'
+import { setPendingInvite } from '../lib/pendingInvite'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async ({ context }) => {
@@ -82,7 +83,13 @@ function GuildCard({ guild }: { guild: Guild }) {
           </Link>
         </>
       ) : (
-        <a className={buttonClassName()} href={guild.inviteUrl} target="_blank" rel="noreferrer">
+        <a
+          className={buttonClassName()}
+          href={guild.inviteUrl}
+          onClick={() => setPendingInvite(guild.id)}
+          target="_blank"
+          rel="noreferrer"
+        >
           Añadir bot
         </a>
       )}

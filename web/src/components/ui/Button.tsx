@@ -6,7 +6,7 @@ import './button.css'
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant
   // Muestra un spinner delante del texto y bloquea el botón. El texto es el que se pase
-  // como hijo: el que lo usa decide si cambia ("Guardando…") o se queda igual.
+  // como hijo: el que lo usa decide si cambia ("Guardando") o se queda igual.
   loading?: boolean
 }
 

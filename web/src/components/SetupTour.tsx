@@ -3,6 +3,7 @@ import type { TicketSetup } from '../lib/useTicketSetup'
 import { CategoryField, PanelField, RoleField } from './TicketFields'
 import { CategoryPreview, PanelPreview, WelcomePreview } from './TicketPreviews'
 import { Button } from './ui/Button'
+import { Confetti } from './ui/Confetti'
 import { Dialog } from './ui/Dialog'
 import { Stepper } from './ui/Stepper'
 
@@ -11,7 +12,8 @@ const ROLE = 1
 const CATEGORY = 2
 const PANEL = 3
 const DONE = 4
-const TOTAL_STEPS = 5
+// Los pasos con indicador; el final ("todo listo") no cuenta.
+const TOTAL_STEPS = 4
 
 type Props = {
   setup: TicketSetup
@@ -56,17 +58,14 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
       ? 'Empezar'
       : step === PANEL
         ? setup.publish.isPending
-          ? 'Publicando…'
+          ? 'Publicando'
           : 'Finalizar'
         : save.isPending
-          ? 'Guardando…'
+          ? 'Guardando'
           : 'Siguiente'
 
   const roleName = config.roles.find((r) => r.id === setup.staffRoleId)?.name
   const categoryName = config.categories.find((c) => c.id === setup.categoryId)?.name
-  const channelName = config.textChannels.find(
-    (c) => c.id === config.settings?.panelChannelId,
-  )?.name
   // En la vista previa se usa el canal que se está eligiendo, aún sin publicar.
   const selectedChannelName = config.textChannels.find((c) => c.id === setup.channelId)?.name
 
@@ -77,9 +76,10 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
       onOpenChange={onOpenChange}
       title="Configura los tickets"
       size="lg"
+      hideTitle={step === DONE}
       dismissible={false}
     >
-      <Stepper current={step} total={TOTAL_STEPS} />
+      {step !== DONE && <Stepper current={step} total={TOTAL_STEPS} />}
 
       <div className="tour-step">
         {step === WELCOME && (
@@ -111,35 +111,26 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
           </>
         )}
         {step === DONE && (
-          <>
+          <div className="tour-done">
+            <Confetti />
+            <span className="tour-done-emoji" aria-hidden="true">
+              🎉
+            </span>
             <h3>¡Todo listo!</h3>
             <p>Tus miembros ya pueden abrir tickets desde el panel.</p>
-            <dl className="tour-summary">
-              <dt>Rol de staff</dt>
-              <dd>{roleName ?? '—'}</dd>
-              <dt>Categoría</dt>
-              <dd>{categoryName ?? '—'}</dd>
-              <dt>Panel</dt>
-              <dd>{channelName ? `# ${channelName}` : '—'}</dd>
-            </dl>
-          </>
+            <Button onClick={() => onOpenChange(false)}>Terminar</Button>
+          </div>
         )}
         {save.isError && step === CATEGORY && (
           <small className="error">No se pudo guardar. Inténtalo de nuevo.</small>
         )}
       </div>
 
-      <div className="tour-actions">
-        <Button
-          variant="outline"
-          onClick={() => setStep(step - 1)}
-          disabled={step === WELCOME || step === DONE}
-        >
-          Atrás
-        </Button>
-        {step === DONE ? (
-          <Button onClick={() => onOpenChange(false)}>Terminar</Button>
-        ) : (
+      {step !== DONE && (
+        <div className="tour-actions">
+          <Button variant="outline" onClick={() => setStep(step - 1)} disabled={step === WELCOME}>
+            Atrás
+          </Button>
           <Button
             onClick={next}
             disabled={!canContinue}
@@ -147,8 +138,8 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
           >
             {nextLabel}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </Dialog>
   )
 }
