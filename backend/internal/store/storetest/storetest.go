@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,27 @@ import (
 
 	"github.com/sedzz/askord/internal/store"
 )
+
+// urls recuerda la base de datos de cada store, para que Exec pueda ejecutar SQL sobre ella.
+var urls sync.Map // *store.Store -> string
+
+// Exec ejecuta SQL directamente sobre la base de datos de st: sirve para preparar situaciones
+// que la API del store no permite, como envejecer un ticket.
+func Exec(t *testing.T, st *store.Store, sql string, args ...any) {
+	t.Helper()
+	url, ok := urls.Load(st)
+	if !ok {
+		t.Fatal("el store no viene de storetest.New")
+	}
+	pool, err := pgxpool.New(context.Background(), url.(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(context.Background(), sql, args...); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // New crea una base de datos nueva a partir de TEST_DATABASE_URL, le aplica las migraciones
 // y la borra al terminar el test. Sin la variable, el test se omite.
@@ -50,6 +72,8 @@ func New(t *testing.T) *store.Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(st.Close)
+	urls.Store(st, u.String())
+	t.Cleanup(func() { urls.Delete(st) })
 	if err := st.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
