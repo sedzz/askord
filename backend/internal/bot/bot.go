@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -16,6 +17,8 @@ import (
 type Bot struct {
 	session *discordgo.Session
 	store   *store.Store
+	// Datos del servidor que vienen de Discord y se guardan un minuto (guildID -> cachedGuild).
+	guildCache sync.Map
 }
 
 func New(token string, s *store.Store) (*Bot, error) {
@@ -103,7 +106,7 @@ type Option struct {
 
 // Categories devuelve las categorías de canales del servidor, en su orden.
 func (b *Bot) Categories(guildID string) ([]Option, error) {
-	channels, err := b.session.GuildChannels(guildID)
+	channels, err := b.guildChannels(guildID)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +127,7 @@ func (b *Bot) Categories(guildID string) ([]Option, error) {
 
 // Roles devuelve los roles del servidor de mayor a menor, sin @everyone ni los de bots.
 func (b *Bot) Roles(guildID string) ([]Option, error) {
-	roles, err := b.session.GuildRoles(guildID)
+	roles, err := b.guildRoles(guildID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +166,7 @@ func (b *Bot) CreateCategory(guildID, name string) (Option, error) {
 	if err != nil {
 		return Option{}, wrapPermissionError(err)
 	}
+	b.rememberChannel(c)
 	return Option{ID: c.ID, Name: c.Name}, nil
 }
 
@@ -172,5 +176,6 @@ func (b *Bot) CreateRole(guildID, name string) (Option, error) {
 	if err != nil {
 		return Option{}, wrapPermissionError(err)
 	}
+	b.rememberRole(guildID, r)
 	return Option{ID: r.ID, Name: r.Name}, nil
 }

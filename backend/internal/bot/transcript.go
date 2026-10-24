@@ -79,7 +79,7 @@ func (b *Bot) saveTranscript(ctx context.Context, ticket *store.Ticket) (saved i
 // roleNames devuelve el nombre de cada rol del servidor, para pintar las menciones.
 func (b *Bot) roleNames(guildID string) map[string]string {
 	names := map[string]string{}
-	roles, err := b.session.GuildRoles(guildID)
+	roles, err := b.guildRoles(guildID)
 	if err != nil {
 		slog.Warn("leer roles para el transcript", "guild", guildID, "err", err)
 		return names

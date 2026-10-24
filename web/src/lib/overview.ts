@@ -37,5 +37,6 @@ export const overviewQuery = (guildId: string, days: Range) =>
       if (!res.ok) throw new Error(`GET overview falló: ${res.status}`)
       return res.json()
     },
-    staleTime: 0,
+    // El dashboard no cambia por segundos: al volver a él se ve al instante lo ya cargado.
+    staleTime: 30_000,
   })

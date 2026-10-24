@@ -40,7 +40,7 @@ const (
 
 // TextChannels devuelve los canales de texto del servidor, en su orden.
 func (b *Bot) TextChannels(guildID string) ([]Option, error) {
-	channels, err := b.session.GuildChannels(guildID)
+	channels, err := b.guildChannels(guildID)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +246,7 @@ func (b *Bot) CreateTextChannel(guildID, name string) (Option, error) {
 	if err != nil {
 		return Option{}, wrapPermissionError(err)
 	}
+	b.rememberChannel(c)
 	return Option{ID: c.ID, Name: c.Name}, nil
 }
 

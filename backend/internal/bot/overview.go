@@ -22,18 +22,50 @@ type GuildOverview struct {
 // discordEpochMs es el 1 de enero de 2015 (en milisegundos), el origen de los IDs ("snowflakes") de Discord.
 const discordEpochMs = 1420070400000
 
-// Overview reúne los datos del servidor. Miembros y conectados vienen de Discord (conteos
-// aproximados); canales y roles, de lo que el bot ya tiene en memoria.
-func (b *Bot) Overview(guildID string) (GuildOverview, error) {
+// guildCounts son los datos que solo se obtienen preguntando a Discord. Cambian despacio,
+// así que se guardan un minuto: cambiar de rango o de pestaña no repite la consulta.
+type guildCounts struct {
+	name, icon string
+	members    int
+	online     int
+	fetchedAt  time.Time
+}
+
+const guildCountsTTL = time.Minute
+
+func (b *Bot) counts(guildID string) (guildCounts, error) {
+	if v, ok := b.guildCache.Load(guildID); ok {
+		if c := v.(guildCounts); time.Since(c.fetchedAt) < guildCountsTTL {
+			return c, nil
+		}
+	}
 	g, err := b.session.GuildWithCounts(guildID)
+	if err != nil {
+		return guildCounts{}, err
+	}
+	c := guildCounts{
+		name:      g.Name,
+		icon:      g.Icon,
+		members:   g.ApproximateMemberCount,
+		online:    g.ApproximatePresenceCount,
+		fetchedAt: time.Now(),
+	}
+	b.guildCache.Store(guildID, c)
+	return c, nil
+}
+
+// Overview reúne los datos del servidor. Miembros y conectados vienen de Discord (conteos
+// aproximados, guardados un minuto); canales y roles, de lo que el bot ya tiene en memoria.
+func (b *Bot) Overview(guildID string) (GuildOverview, error) {
+	c, err := b.counts(guildID)
 	if err != nil {
 		return GuildOverview{}, err
 	}
 	o := GuildOverview{
-		Name:        g.Name,
-		Icon:        g.Icon,
-		MemberCount: g.ApproximateMemberCount,
-		OnlineCount: g.ApproximatePresenceCount,
+		Name:        c.name,
+		Icon:        c.icon,
+		MemberCount: c.members,
+		OnlineCount: c.online,
 	}
 
 	if id, err := strconv.ParseUint(guildID, 10, 64); err == nil {

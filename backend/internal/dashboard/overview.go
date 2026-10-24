@@ -36,6 +36,17 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		days = n
 	}
 
+	// La consulta a Discord corre a la vez que las de la base de datos.
+	type guildResult struct {
+		guild bot.GuildOverview
+		err   error
+	}
+	guildCh := make(chan guildResult, 1)
+	go func() {
+		g, err := h.bot.Overview(guildID)
+		guildCh <- guildResult{g, err}
+	}()
+
 	stats, err := h.store.TicketStats(r.Context(), guildID)
 	if err != nil {
 		slog.Error("estadisticas de tickets", "err", err)
@@ -50,10 +61,10 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := overviewResponse{Tickets: stats, Series: series}
-	if g, err := h.bot.Overview(guildID); err != nil {
-		slog.Warn("ficha del servidor", "guild", guildID, "err", err)
+	if res := <-guildCh; res.err != nil {
+		slog.Warn("ficha del servidor", "guild", guildID, "err", res.err)
 	} else {
-		resp.Guild = &g
+		resp.Guild = &res.guild
 	}
 	writeJSON(w, resp)
 }
