@@ -172,7 +172,6 @@ h2 {
 .form {
   display: grid;
   gap: 16px;
-  max-width: 560px;
   margin-top: 24px;
 }
 
@@ -266,7 +265,6 @@ h2 {
   padding: 12px 0;
   overflow-y: auto;
   background: var(--rail-bg);
-  border: 1px solid var(--border);
   border-radius: 16px;
 }
 
@@ -324,4 +322,10 @@ h2 {
 
 .brand {
   text-decoration: none;
+}
+
+/* Columna centrada en el contenido; el texto sigue alineado a la izquierda. */
+.content-centered {
+  max-width: 640px;
+  margin: 0 auto;
 }

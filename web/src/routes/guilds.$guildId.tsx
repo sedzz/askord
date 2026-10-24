@@ -85,7 +85,7 @@ function GuildSettings({ guildId }: { guildId: string }) {
   }
 
   return (
-    <div>
+    <div className="content-centered">
       <h1>Tickets</h1>
       <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
 
