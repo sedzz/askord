@@ -3,20 +3,14 @@ import { Link } from '@tanstack/react-router'
 import { guildIconUrl, guildsQuery } from '../lib/guilds'
 
 // Barra lateral con los servidores donde está el bot, al estilo de Discord.
+// Sin ninguno, no se muestra: el inicio ofrece entonces añadir el primero.
 export function ServerRail({ activeGuildId }: { activeGuildId?: string }) {
   const { data: guilds } = useQuery(guildsQuery)
   const installed = guilds?.filter((g) => g.botInstalled) ?? []
+  if (installed.length === 0) return null
 
   return (
     <nav className="rail" aria-label="Servidores">
-      <Link
-        to="/"
-        className={activeGuildId ? 'rail-item rail-home' : 'rail-item rail-home active'}
-        title="Todos tus servidores"
-      >
-        A
-      </Link>
-      <hr className="rail-sep" />
       {installed.map((g) => {
         const icon = guildIconUrl(g)
         return (

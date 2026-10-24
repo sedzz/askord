@@ -270,13 +270,6 @@ h2 {
   border-radius: 16px;
 }
 
-.rail-sep {
-  width: 32px;
-  margin: 0;
-  border: 0;
-  border-top: 2px solid var(--border);
-}
-
 .rail-item {
   position: relative;
   display: grid;
@@ -307,11 +300,6 @@ h2 {
   border-radius: 16px;
 }
 
-.rail-home {
-  color: var(--accent-fg);
-  background: var(--accent);
-}
-
 /* Indicador a la izquierda: pequeño al pasar el ratón, alto en el servidor activo. */
 .rail-item::before {
   position: absolute;
@@ -332,4 +320,8 @@ h2 {
 
 .rail-item.active::before {
   height: 40px;
+}
+
+.brand {
+  text-decoration: none;
 }

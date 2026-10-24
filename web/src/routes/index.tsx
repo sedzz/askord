@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { AppShell } from '../components/AppShell'
 import { Button } from '../components/ui/Button'
 import { buttonClassName } from '../components/ui/button-styles'
@@ -7,7 +7,15 @@ import { requireUser } from '../lib/auth'
 import { guildIconUrl, guildsQuery, type Guild } from '../lib/guilds'
 
 export const Route = createFileRoute('/')({
-  beforeLoad: ({ context }) => requireUser(context.queryClient),
+  beforeLoad: async ({ context }) => {
+    await requireUser(context.queryClient)
+
+    // Con algún servidor configurado, el inicio es el panel de ese servidor.
+    // Esta lista solo se ve mientras no hay ninguno.
+    const guilds = await context.queryClient.fetchQuery(guildsQuery).catch(() => [])
+    const first = guilds.find((g) => g.botInstalled)
+    if (first) throw redirect({ to: '/guilds/$guildId', params: { guildId: first.id } })
+  },
   component: Dashboard,
 })
 

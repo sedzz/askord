@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useState, type ReactNode } from 'react'
 import { avatarUrl, logout, meQuery } from '../lib/auth'
+import { AddServerDialog } from './AddServerDialog'
 import { ServerRail } from './ServerRail'
 import { Button } from './ui/Button'
 
 type Props = {
-  // Servidor abierto; sin él, la barra marca el inicio como activo.
+  // Servidor abierto, para marcarlo en la barra lateral.
   activeGuildId?: string
   children: ReactNode
 }
@@ -25,14 +26,32 @@ export function AppShell({ activeGuildId, children }: Props) {
     },
   })
 
+  const [addOpen, setAddOpen] = useState(false)
   const avatar = user ? avatarUrl(user) : null
 
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">Askord</span>
+        <Link to="/" className="brand">
+          Askord
+        </Link>
         {user && (
           <div className="user">
+            <Button onClick={() => setAddOpen(true)}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Añadir servidor
+            </Button>
             {avatar && <img src={avatar} alt="" width={32} height={32} />}
             <span>{user.username}</span>
             <Button
@@ -49,6 +68,7 @@ export function AppShell({ activeGuildId, children }: Props) {
         <ServerRail activeGuildId={activeGuildId} />
         <main className="content">{children}</main>
       </div>
+      <AddServerDialog open={addOpen} onOpenChange={setAddOpen} />
     </div>
   )
 }
