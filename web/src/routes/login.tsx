@@ -1,4 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { buttonClassName } from '../components/ui/button-styles'
+import '../components/ui/button.css'
 import { meQuery } from '../lib/auth'
 
 export const Route = createFileRoute('/login')({
@@ -20,7 +22,7 @@ function Login() {
       <p>Soporte e incidencias de tu servidor, conectado a tu sistema.</p>
       {error && <p className="error">No se pudo iniciar sesión. Inténtalo de nuevo.</p>}
       {/* Navegación completa: el flujo OAuth lo gestiona el backend. */}
-      <a className="button" href="/auth/login">
+      <a className={buttonClassName()} href="/auth/login">
         Entrar con Discord
       </a>
     </main>

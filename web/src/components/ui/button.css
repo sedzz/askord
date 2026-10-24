@@ -1,0 +1,66 @@
+.ui-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.15s;
+}
+
+/* Con un icono dentro, menos relleno lateral. */
+.ui-button:has(> svg) {
+  padding-inline: 12px;
+}
+
+.ui-button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.ui-button:disabled,
+.ui-button[aria-disabled='true'] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ui-button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.ui-button--primary {
+  color: var(--accent-fg);
+  background: var(--accent);
+}
+
+.ui-button--primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+
+/* Cristal: fondo translúcido con desenfoque y sombra suave. */
+.ui-button--outline {
+  color: #fafafa;
+  background: rgb(255 255 255 / 6%);
+  border-color: transparent;
+  box-shadow:
+    0 10px 15px 0 rgb(0 0 0 / 10%),
+    0 4px 6px 0 rgb(0 0 0 / 10%);
+  backdrop-filter: blur(12px);
+}
+
+.ui-button--outline:hover {
+  background: rgb(255 255 255 / 10%);
+}

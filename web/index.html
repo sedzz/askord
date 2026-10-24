@@ -4,9 +4,26 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#16171d" />
+    <!-- Los pesos más usados se piden desde el principio para evitar el salto de fuente. -->
+    <link
+      rel="preload"
+      href="/fonts/SpaceGrotesk-Regular.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/SpaceGrotesk-Medium.ttf"
+      as="font"
+      type="font/ttf"
+      crossorigin
+    />
+    <title>Askord</title>
   </head>
-  <body>
+  <body style="background: #16171d">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

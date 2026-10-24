@@ -1,6 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { avatarUrl, logout, meQuery, requireUser } from '../lib/auth'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { AppShell } from '../components/AppShell'
+import { Button } from '../components/ui/Button'
+import { buttonClassName } from '../components/ui/button-styles'
+import { requireUser } from '../lib/auth'
 import { guildIconUrl, guildsQuery, type Guild } from '../lib/guilds'
 
 export const Route = createFileRoute('/')({
@@ -9,35 +12,10 @@ export const Route = createFileRoute('/')({
 })
 
 function Dashboard() {
-  const { data: user } = useQuery(meQuery)
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
-
-  const logoutMutation = useMutation({
-    mutationFn: logout,
-    onSuccess: async () => {
-      queryClient.setQueryData(meQuery.queryKey, null)
-      await navigate({ to: '/login' })
-    },
-  })
-
-  if (!user) return null
-  const avatar = avatarUrl(user)
-
   return (
-    <main className="page">
-      <header className="topbar">
-        <h1>Askord</h1>
-        <div className="user">
-          {avatar && <img src={avatar} alt="" width={32} height={32} />}
-          <span>{user.username}</span>
-          <button onClick={() => logoutMutation.mutate()} disabled={logoutMutation.isPending}>
-            Salir
-          </button>
-        </div>
-      </header>
+    <AppShell>
       <Guilds />
-    </main>
+    </AppShell>
   )
 }
 
@@ -51,9 +29,9 @@ function Guilds() {
     <section>
       <div className="section-head">
         <h2>Tus servidores</h2>
-        <button onClick={() => refetch()} disabled={isFetching}>
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
           Actualizar
-        </button>
+        </Button>
       </div>
       {guilds.length === 0 ? (
         <p>
@@ -84,12 +62,12 @@ function GuildCard({ guild }: { guild: Guild }) {
       {guild.botInstalled ? (
         <>
           <span className="badge">Bot activo</span>
-          <Link className="button" to="/guilds/$guildId" params={{ guildId: guild.id }}>
+          <Link className={buttonClassName()} to="/guilds/$guildId" params={{ guildId: guild.id }}>
             Configurar
           </Link>
         </>
       ) : (
-        <a className="button" href={guild.inviteUrl} target="_blank" rel="noreferrer">
+        <a className={buttonClassName()} href={guild.inviteUrl} target="_blank" rel="noreferrer">
           Añadir bot
         </a>
       )}

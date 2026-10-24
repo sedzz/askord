@@ -3,7 +3,10 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, type FormEvent } from 'react'
 import { PanelSection } from '../components/PanelSection'
 import { Select } from '../components/Select'
+import { AppShell } from '../components/AppShell'
+import { Button } from '../components/ui/Button'
 import { requireUser } from '../lib/auth'
+import { guildsQuery } from '../lib/guilds'
 import {
   createCategory,
   createRole,
@@ -16,18 +19,30 @@ import {
 export const Route = createFileRoute('/guilds/$guildId')({
   beforeLoad: ({ context }) => requireUser(context.queryClient),
   loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(ticketConfigQuery(params.guildId)),
+    Promise.all([
+      context.queryClient.ensureQueryData(ticketConfigQuery(params.guildId)),
+      context.queryClient.ensureQueryData(guildsQuery),
+    ]),
   errorComponent: () => (
     <main className="page">
       <Link to="/">← Volver</Link>
       <p className="error">No se pudo cargar este servidor.</p>
     </main>
   ),
-  component: GuildSettings,
+  component: GuildPage,
 })
 
-function GuildSettings() {
+function GuildPage() {
   const { guildId } = Route.useParams()
+  return (
+    <AppShell activeGuildId={guildId}>
+      {/* key: al cambiar de servidor se reinicia el formulario con sus datos. */}
+      <GuildSettings key={guildId} guildId={guildId} />
+    </AppShell>
+  )
+}
+
+function GuildSettings({ guildId }: { guildId: string }) {
   const { data } = useSuspenseQuery(ticketConfigQuery(guildId))
   const queryClient = useQueryClient()
   const queryKey = ticketConfigQuery(guildId).queryKey
@@ -70,8 +85,7 @@ function GuildSettings() {
   }
 
   return (
-    <main className="page">
-      <Link to="/">← Volver</Link>
+    <div>
       <h1>Tickets</h1>
       <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
 
@@ -102,9 +116,9 @@ function GuildSettings() {
         />
 
         <div className="form-actions">
-          <button type="submit" disabled={!categoryId || !staffRoleId || save.isPending}>
+          <Button type="submit" disabled={!categoryId || !staffRoleId || save.isPending}>
             Guardar
-          </button>
+          </Button>
           {save.isSuccess && <span className="saved">Guardado</span>}
           {save.isError && <span className="error">No se pudo guardar</span>}
         </div>
@@ -119,6 +133,6 @@ function GuildSettings() {
       ) : (
         <p className="hint">Guarda los pasos 1 y 2 para poder publicar el panel (paso 3).</p>
       )}
-    </main>
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 import { MISSING_PERMISSIONS, type Option } from '../lib/tickets'
+import { Button } from './ui/Button'
 
 type Props = {
   label: string
@@ -50,15 +51,15 @@ export function Select({
             </option>
           ))}
         </select>
-        <button type="button" onClick={onCreate} disabled={creating}>
+        <Button variant="outline" onClick={onCreate} disabled={creating}>
           {createLabel}
-        </button>
+        </Button>
       </div>
       {action && (
         <div className="field-row">
-          <button type="button" onClick={action.onClick} disabled={action.disabled}>
+          <Button onClick={action.onClick} disabled={action.disabled}>
             {action.label}
-          </button>
+          </Button>
         </div>
       )}
       {createError && (
