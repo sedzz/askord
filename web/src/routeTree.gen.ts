@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GuildsGuildIdRouteImport } from './routes/guilds.$guildId'
+import { Route as GuildsGuildIdIndexRouteImport } from './routes/guilds.$guildId.index'
+import { Route as GuildsGuildIdSettingsRouteImport } from './routes/guilds.$guildId.settings'
+import { Route as GuildsGuildIdTranscriptsRouteImport } from './routes/guilds.$guildId.transcripts'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +31,77 @@ const GuildsGuildIdRoute = GuildsGuildIdRouteImport.update({
   path: '/guilds/$guildId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuildsGuildIdIndexRoute = GuildsGuildIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GuildsGuildIdRoute,
+} as any)
+const GuildsGuildIdSettingsRoute = GuildsGuildIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => GuildsGuildIdRoute,
+} as any)
+const GuildsGuildIdTranscriptsRoute =
+  GuildsGuildIdTranscriptsRouteImport.update({
+    id: '/transcripts',
+    path: '/transcripts',
+    getParentRoute: () => GuildsGuildIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/guilds/$guildId': typeof GuildsGuildIdRoute
+  '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
+  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
+  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
+  '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/guilds/$guildId': typeof GuildsGuildIdRoute
+  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
+  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
+  '/guilds/$guildId': typeof GuildsGuildIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/guilds/$guildId': typeof GuildsGuildIdRoute
+  '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
+  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
+  '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsRoute
+  '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/guilds/$guildId'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/guilds/$guildId'
+    | '/guilds/$guildId/settings'
+    | '/guilds/$guildId/transcripts'
+    | '/guilds/$guildId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/guilds/$guildId'
-  id: '__root__' | '/' | '/login' | '/guilds/$guildId'
+  to:
+    | '/'
+    | '/login'
+    | '/guilds/$guildId/settings'
+    | '/guilds/$guildId/transcripts'
+    | '/guilds/$guildId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/guilds/$guildId'
+    | '/guilds/$guildId/settings'
+    | '/guilds/$guildId/transcripts'
+    | '/guilds/$guildId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
-  GuildsGuildIdRoute: typeof GuildsGuildIdRoute
+  GuildsGuildIdRoute: typeof GuildsGuildIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -82,13 +127,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuildsGuildIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guilds/$guildId/': {
+      id: '/guilds/$guildId/'
+      path: '/'
+      fullPath: '/guilds/$guildId/'
+      preLoaderRoute: typeof GuildsGuildIdIndexRouteImport
+      parentRoute: typeof GuildsGuildIdRoute
+    }
+    '/guilds/$guildId/settings': {
+      id: '/guilds/$guildId/settings'
+      path: '/settings'
+      fullPath: '/guilds/$guildId/settings'
+      preLoaderRoute: typeof GuildsGuildIdSettingsRouteImport
+      parentRoute: typeof GuildsGuildIdRoute
+    }
+    '/guilds/$guildId/transcripts': {
+      id: '/guilds/$guildId/transcripts'
+      path: '/transcripts'
+      fullPath: '/guilds/$guildId/transcripts'
+      preLoaderRoute: typeof GuildsGuildIdTranscriptsRouteImport
+      parentRoute: typeof GuildsGuildIdRoute
+    }
   }
 }
+
+interface GuildsGuildIdRouteChildren {
+  GuildsGuildIdSettingsRoute: typeof GuildsGuildIdSettingsRoute
+  GuildsGuildIdTranscriptsRoute: typeof GuildsGuildIdTranscriptsRoute
+  GuildsGuildIdIndexRoute: typeof GuildsGuildIdIndexRoute
+}
+
+const GuildsGuildIdRouteChildren: GuildsGuildIdRouteChildren = {
+  GuildsGuildIdSettingsRoute: GuildsGuildIdSettingsRoute,
+  GuildsGuildIdTranscriptsRoute: GuildsGuildIdTranscriptsRoute,
+  GuildsGuildIdIndexRoute: GuildsGuildIdIndexRoute,
+}
+
+const GuildsGuildIdRouteWithChildren = GuildsGuildIdRoute._addFileChildren(
+  GuildsGuildIdRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
-  GuildsGuildIdRoute: GuildsGuildIdRoute,
+  GuildsGuildIdRoute: GuildsGuildIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

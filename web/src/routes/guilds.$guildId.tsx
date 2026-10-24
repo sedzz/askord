@@ -1,13 +1,12 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
+import { useState } from 'react'
 import { AppShell } from '../components/AppShell'
-import { RemoveBotDialog } from '../components/RemoveBotDialog'
+import { GuildSubnav } from '../components/GuildSubnav'
 import { SetupTour } from '../components/SetupTour'
-import { CategoryField, PanelField, RoleField } from '../components/TicketFields'
-import { Button } from '../components/ui/Button'
 import { requireUser } from '../lib/auth'
 import { guildsQuery } from '../lib/guilds'
-import { toast } from '../lib/toast'
+import { TicketSetupContext } from '../lib/ticketSetupContext'
 import { ticketConfigQuery } from '../lib/tickets'
 import { useTicketSetup } from '../lib/useTicketSetup'
 
@@ -24,72 +23,39 @@ export const Route = createFileRoute('/guilds/$guildId')({
       <p className="error">No se pudo cargar este servidor.</p>
     </main>
   ),
-  component: GuildPage,
+  component: GuildLayout,
 })
 
-function GuildPage() {
+function GuildLayout() {
   const { guildId } = Route.useParams()
-  // key: al cambiar de servidor se reinicia todo (formulario y diálogos abiertos).
+  // key: al cambiar de servidor se reinicia todo (formularios y diálogos abiertos).
   return (
     <AppShell key={guildId} activeGuildId={guildId}>
-      <GuildSettings guildId={guildId} />
+      <GuildFrame guildId={guildId} />
     </AppShell>
   )
 }
 
-function GuildSettings({ guildId }: { guildId: string }) {
+// Marco de un servidor: sub-barra lateral con sus secciones y, a la derecha, la sección abierta.
+function GuildFrame({ guildId }: { guildId: string }) {
   const setup = useTicketSetup(guildId)
-  const { config, save } = setup
+  const { data: guilds } = useQuery(guildsQuery)
+  const guild = guilds?.find((g) => g.id === guildId)
 
-  // Mientras falte algo (servidor nuevo o a medias), el tour se abre solo y no se puede
-  // cerrar hasta terminarlo. Se decide al entrar: publicar el panel no lo cierra a mitad.
-  const [tourOpen, setTourOpen] = useState(!config.settings?.panelChannelId)
-  const [removeOpen, setRemoveOpen] = useState(false)
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    save.mutate(undefined, { onSuccess: () => toast('Cambios guardados') })
-  }
+  // Mientras falte algo (servidor nuevo o a medias), el tour se abre solo, en cualquier
+  // sección, y no se puede cerrar hasta terminarlo. Se decide al entrar: publicar el
+  // panel no lo cierra a mitad.
+  const [tourOpen, setTourOpen] = useState(!setup.config.settings?.panelChannelId)
 
   return (
-    <div className="content-centered">
-      <h1>Tickets</h1>
-      <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
-
-      <form className="form" onSubmit={onSubmit}>
-        <RoleField setup={setup} />
-        <CategoryField setup={setup} />
-
-        <div className="form-actions">
-          <Button
-            type="submit"
-            disabled={!setup.categoryId || !setup.staffRoleId}
-            loading={save.isPending}
-          >
-            {save.isPending ? 'Guardando' : 'Guardar'}
-          </Button>
-          {save.isError && <span className="error">No se pudo guardar</span>}
+    <TicketSetupContext.Provider value={setup}>
+      <div className="guild-layout">
+        <GuildSubnav guildId={guildId} guild={guild} />
+        <div className="guild-page">
+          <Outlet />
         </div>
-      </form>
-
-      {config.settings ? (
-        <section className="form panel">
-          <PanelField setup={setup} />
-        </section>
-      ) : (
-        <p className="hint">Guarda los pasos 1 y 2 para poder publicar el panel (paso 3).</p>
-      )}
-
-      <section className="danger-zone">
-        <h2>Zona de peligro</h2>
-        <p>Quita el bot de este servidor y borra todos sus datos, transcripciones incluidas.</p>
-        <Button variant="danger" onClick={() => setRemoveOpen(true)}>
-          Quitar bot del servidor
-        </Button>
-      </section>
-
-      <RemoveBotDialog guildId={guildId} open={removeOpen} onOpenChange={setRemoveOpen} />
+      </div>
       <SetupTour setup={setup} open={tourOpen} onOpenChange={setTourOpen} />
-    </div>
+    </TicketSetupContext.Provider>
   )
 }

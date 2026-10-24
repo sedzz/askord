@@ -172,6 +172,7 @@ h2 {
 .form {
   display: grid;
   gap: 16px;
+  max-width: 560px;
   margin-top: 24px;
 }
 
@@ -311,12 +312,6 @@ h2 {
   text-decoration: none;
 }
 
-/* Columna centrada en el contenido; el texto sigue alineado a la izquierda. */
-.content-centered {
-  max-width: 640px;
-  margin: 0 auto;
-}
-
 /* Tour de configuración. */
 .tour-step {
   display: grid;
@@ -347,6 +342,7 @@ h2 {
 /* Zona de peligro al final de los ajustes del servidor. */
 .danger-zone {
   display: grid;
+  max-width: 560px;
   gap: 8px;
   justify-items: start;
   padding-top: 24px;
@@ -394,4 +390,136 @@ h2 {
 /* Fila de acción bajo el selector (p. ej. "Volver a publicar"): misma distancia que "Guardar". */
 .field-row + .field-row {
   margin-top: 10px;
+}
+
+/* Marco de un servidor: sub-barra lateral + sección abierta. */
+.guild-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.guild-page {
+  flex: 1;
+  min-width: 0;
+}
+
+.subnav {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  flex-shrink: 0;
+  gap: 4px;
+  width: 200px;
+}
+
+.subnav-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 10px 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.subnav-title img,
+.subnav-fallback {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.subnav-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  background: var(--border);
+}
+
+.subnav-title span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subnav-link {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.subnav-link:hover {
+  color: var(--text-h);
+  background: rgb(255 255 255 / 6%);
+}
+
+.subnav-link.active {
+  color: var(--text-h);
+  background: rgb(255 255 255 / 10%);
+}
+
+.subnav-link svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.subnav-link.active svg {
+  color: var(--accent);
+}
+
+/* Lista de comprobación del dashboard. */
+.checklist {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 24px 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.check-mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--accent-fg);
+  border: 2px solid var(--border);
+  border-radius: 50%;
+}
+
+.check.done .check-mark {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.check-label {
+  flex: 1;
+  color: var(--text-h);
+}
+
+.check-value {
+  color: var(--text);
+}
+
+.check-mark svg {
+  width: 12px;
+  height: 12px;
 }
