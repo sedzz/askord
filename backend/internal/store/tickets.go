@@ -17,6 +17,8 @@ type Ticket struct {
 	Number    int
 	ChannelID string
 	OpenerID  string
+	// 0 en los tickets anteriores a los tipos o si se borró su tipo.
+	TypeID int64
 }
 
 func (s *Store) SavePanel(ctx context.Context, guildID, channelID, messageID string) error {
@@ -39,22 +41,24 @@ func (s *Store) NextTicketNumber(ctx context.Context, guildID string) (int, erro
 // CreateTicket guarda el ticket; devuelve ErrTicketExists si el usuario ya tiene uno abierto.
 func (s *Store) CreateTicket(ctx context.Context, t Ticket) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO tickets (guild_id, number, channel_id, opener_id) VALUES ($1, $2, $3, $4)`,
-		t.GuildID, t.Number, t.ChannelID, t.OpenerID)
+		INSERT INTO tickets (guild_id, number, channel_id, opener_id, type_id)
+		VALUES ($1, $2, $3, $4, NULLIF($5::bigint, 0))`,
+		t.GuildID, t.Number, t.ChannelID, t.OpenerID, t.TypeID)
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "tickets_one_open_per_user" {
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "tickets_one_open_per_user_type" {
 		return ErrTicketExists
 	}
 	return err
 }
 
-// OpenTicketByUser devuelve el ticket abierto del usuario, o nil si no tiene.
-func (s *Store) OpenTicketByUser(ctx context.Context, guildID, userID string) (*Ticket, error) {
+// OpenTicketByUser devuelve el ticket abierto del usuario de ese tipo, o nil si no tiene.
+func (s *Store) OpenTicketByUser(ctx context.Context, guildID, userID string, typeID int64) (*Ticket, error) {
 	var t Ticket
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, guild_id, number, channel_id, opener_id FROM tickets
-		WHERE guild_id = $1 AND opener_id = $2 AND status = 'open'`, guildID, userID).
-		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID)
+		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0) FROM tickets
+		WHERE guild_id = $1 AND opener_id = $2 AND status = 'open' AND COALESCE(type_id, 0) = $3`,
+		guildID, userID, typeID).
+		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -79,9 +83,9 @@ func (s *Store) TicketByChannel(ctx context.Context, channelID string) (*Ticket,
 		status string
 	)
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, guild_id, number, channel_id, opener_id, status FROM tickets
+		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0), status FROM tickets
 		WHERE channel_id = $1`, channelID).
-		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &status)
+		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", nil
 	}

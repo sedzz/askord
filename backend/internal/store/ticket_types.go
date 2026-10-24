@@ -191,3 +191,13 @@ func (s *Store) EnsureDefaultTicketType(ctx context.Context, guildID string) err
 		WHERE NOT EXISTS (SELECT 1 FROM ticket_types WHERE guild_id = $1)`, guildID)
 	return err
 }
+
+// GetTicketType devuelve un tipo del servidor, o ErrNotFound.
+func (s *Store) GetTicketType(ctx context.Context, guildID string, id int64) (TicketType, error) {
+	t, err := scanType(s.pool.QueryRow(ctx,
+		`SELECT `+typeColumns+` FROM ticket_types WHERE guild_id = $1 AND id = $2`, guildID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TicketType{}, ErrNotFound
+	}
+	return t, err
+}

@@ -63,8 +63,8 @@ export function TicketTypes({ guildId }: { guildId: string }) {
         <div>
           <h2>Tipos de ticket</h2>
           <p className="card-sub">
-            Lo que elegirán tus miembros al abrir un ticket. Cada tipo puede ir a su propia
-            categoría y equipo.
+            Lo que elegirán tus miembros al abrir un ticket. Cada tipo va a su propia categoría y
+            equipo. El panel publicado en Discord se actualiza solo con cada cambio.
           </p>
         </div>
         <Button

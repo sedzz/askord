@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -16,7 +19,6 @@ import (
 )
 
 const (
-	customIDOpenTicket       = "ticket:open"
 	customIDCloseTicket      = "ticket:close"
 	customIDTranscribeTicket = "ticket:transcribe"
 	customIDDeleteTicket     = "ticket:delete"
@@ -59,52 +61,31 @@ func (b *Bot) TextChannels(guildID string) ([]Option, error) {
 	return out, nil
 }
 
-// PublishPanel envía el mensaje con el botón "Crear ticket" y borra el panel anterior, si había.
-func (b *Bot) PublishPanel(channelID, oldChannelID, oldMessageID string) (string, error) {
-	msg, err := b.session.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
-		Embeds: []*discordgo.MessageEmbed{{
-			Title:       "Soporte",
-			Description: "¿Necesitas ayuda? Pulsa el botón para abrir un ticket privado con el staff.",
-			Color:       0xFFC5D3,
-		}},
-		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label:    "Crear ticket",
-					Style:    discordgo.SecondaryButton,
-					CustomID: customIDOpenTicket,
-					Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
-				},
-			}},
-		},
-	})
-	if err != nil {
-		return "", wrapPermissionError(err)
-	}
-	if oldChannelID != "" && oldMessageID != "" {
-		_ = b.session.ChannelMessageDelete(oldChannelID, oldMessageID) // mejor esfuerzo
-	}
-	return msg.ID, nil
-}
-
 func (b *Bot) onInteraction(_ *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type != discordgo.InteractionMessageComponent || i.GuildID == "" || i.Member == nil {
 		return
 	}
-	switch i.MessageComponentData().CustomID {
-	case customIDOpenTicket:
-		b.openTicket(i)
-	case customIDCloseTicket:
+	data := i.MessageComponentData()
+	switch {
+	case data.CustomID == customIDOpenTicket || strings.HasPrefix(data.CustomID, customIDOpenTicket+":"):
+		b.openTicket(i, parseTypeID(data.CustomID))
+	case data.CustomID == customIDSelectType:
+		if len(data.Values) == 1 {
+			id, _ := strconv.ParseInt(data.Values[0], 10, 64)
+			b.openTicket(i, id)
+		}
+	case data.CustomID == customIDCloseTicket:
 		b.closeTicket(i)
-	case customIDTranscribeTicket:
+	case data.CustomID == customIDTranscribeTicket:
 		b.transcribeTicket(i)
-	case customIDDeleteTicket:
+	case data.CustomID == customIDDeleteTicket:
 		b.deleteTicket(i)
 	}
 }
 
 // openTicket responde en privado al usuario que pulsó el botón.
-func (b *Bot) openTicket(i *discordgo.InteractionCreate) {
+// typeID es el tipo elegido; 0 en los paneles antiguos, que abren el primer tipo.
+func (b *Bot) openTicket(i *discordgo.InteractionCreate, typeID int64) {
 	// Crear el canal puede tardar más que los 3 s que da Discord: se difiere la respuesta.
 	err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -115,14 +96,14 @@ func (b *Bot) openTicket(i *discordgo.InteractionCreate) {
 		return
 	}
 
-	msg := b.createTicket(i.GuildID, i.Member.User)
+	msg := b.createTicket(i.GuildID, i.Member.User, typeID)
 	if _, err := b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Content: &msg}); err != nil {
 		slog.Error("editar respuesta", "err", err)
 	}
 }
 
 // createTicket crea el canal privado y devuelve el mensaje para el usuario.
-func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
+func (b *Bot) createTicket(guildID string, user *discordgo.User, typeID int64) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -135,14 +116,27 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
 		return msgNotConfigured
 	}
 
-	existing, err := b.store.OpenTicketByUser(ctx, guildID, user.ID)
+	types, err := b.store.ListTicketTypes(ctx, guildID)
+	if err != nil {
+		slog.Error("listar tipos de ticket", "guild", guildID, "err", err)
+		return msgInternal
+	}
+	ticketType, ok := pickType(types, typeID)
+	if !ok {
+		return "Este tipo de ticket ya no existe. Avisa al staff para que actualice el panel."
+	}
+	// Cada tipo lleva su categoría y su equipo; si no los tiene, los del servidor.
+	categoryID := cmp.Or(ticketType.CategoryID, settings.CategoryID)
+	staffRoleID := cmp.Or(ticketType.StaffRoleID, settings.StaffRoleID)
+
+	existing, err := b.store.OpenTicketByUser(ctx, guildID, user.ID, ticketType.ID)
 	if err != nil {
 		slog.Error("buscar ticket abierto", "guild", guildID, "err", err)
 		return msgInternal
 	}
 	if existing != nil {
 		if b.channelExists(existing.ChannelID) {
-			return fmt.Sprintf("Ya tienes un ticket abierto: <#%s>", existing.ChannelID)
+			return fmt.Sprintf("Ya tienes un ticket abierto%s: <#%s>", ofType(ticketType, len(types)), existing.ChannelID)
 		}
 		// Borraron el canal a mano: se cierra el ticket y se deja abrir otro.
 		if err := b.store.CloseTicketByChannel(ctx, existing.ChannelID); err != nil {
@@ -160,12 +154,12 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
 	channel, err := b.session.GuildChannelCreateComplex(guildID, discordgo.GuildChannelCreateData{
 		Name:     fmt.Sprintf("ticket-%04d", number),
 		Type:     discordgo.ChannelTypeGuildText,
-		ParentID: settings.CategoryID,
+		ParentID: categoryID,
 		PermissionOverwrites: []*discordgo.PermissionOverwrite{
 			// @everyone usa como ID el del propio servidor.
 			{ID: guildID, Type: discordgo.PermissionOverwriteTypeRole, Deny: discordgo.PermissionViewChannel},
 			{ID: user.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: ticketMemberPerms},
-			{ID: settings.StaffRoleID, Type: discordgo.PermissionOverwriteTypeRole, Allow: ticketMemberPerms},
+			{ID: staffRoleID, Type: discordgo.PermissionOverwriteTypeRole, Allow: ticketMemberPerms},
 			{ID: b.session.State.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: ticketBotPerms},
 		},
 	})
@@ -178,7 +172,7 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
 	}
 
 	err = b.store.CreateTicket(ctx, store.Ticket{
-		GuildID: guildID, Number: number, ChannelID: channel.ID, OpenerID: user.ID,
+		GuildID: guildID, Number: number, ChannelID: channel.ID, OpenerID: user.ID, TypeID: ticketType.ID,
 	})
 	if err != nil {
 		_, _ = b.session.ChannelDelete(channel.ID)
@@ -191,11 +185,11 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
 
 	_, err = b.session.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
 		Content: fmt.Sprintf(
-			"Hola <@%s>, gracias por abrir un ticket. Cuéntanos tu problema y <@&%s> te atenderá en cuanto pueda.",
-			user.ID, settings.StaffRoleID),
+			"Hola <@%s>, gracias por abrir un ticket%s. Cuéntanos tu problema y <@&%s> te atenderá en cuanto pueda.",
+			user.ID, ofType(ticketType, len(types)), staffRoleID),
 		AllowedMentions: &discordgo.MessageAllowedMentions{
 			Users: []string{user.ID},
-			Roles: []string{settings.StaffRoleID},
+			Roles: []string{staffRoleID},
 		},
 		Components: []discordgo.MessageComponent{buttonRow(discordgo.Button{
 			Label:    "Cerrar ticket",
@@ -250,6 +244,41 @@ func (b *Bot) CreateTextChannel(guildID, name string) (Option, error) {
 	return Option{ID: c.ID, Name: c.Name}, nil
 }
 
+// pickType elige el tipo pedido; con 0 (paneles antiguos) el primero. Sin ningún tipo
+// devuelve uno vacío, que usa los valores del servidor.
+func pickType(types []store.TicketType, id int64) (store.TicketType, bool) {
+	if id == 0 {
+		if len(types) == 0 {
+			return store.TicketType{}, true
+		}
+		return types[0], true
+	}
+	for _, t := range types {
+		if t.ID == id {
+			return t, true
+		}
+	}
+	return store.TicketType{}, false
+}
+
+// ofType nombra el tipo en un mensaje, solo si el servidor tiene varios: " de tipo **💳 Pagos**".
+func ofType(t store.TicketType, count int) string {
+	if count < 2 || t.Name == "" {
+		return ""
+	}
+	return fmt.Sprintf(" de tipo **%s**", strings.TrimSpace(t.Emoji+" "+t.Name))
+}
+
+// staffRoleFor es el rol que atiende un ticket: el de su tipo o, si no tiene, el del servidor.
+func (b *Bot) staffRoleFor(ctx context.Context, t *store.Ticket, settings *store.TicketSettings) string {
+	if t.TypeID != 0 {
+		if ty, err := b.store.GetTicketType(ctx, t.GuildID, t.TypeID); err == nil && ty.StaffRoleID != "" {
+			return ty.StaffRoleID
+		}
+	}
+	return settings.StaffRoleID
+}
+
 func buttonRow(buttons ...discordgo.Button) discordgo.MessageComponent {
 	row := discordgo.ActionsRow{}
 	for _, b := range buttons {
@@ -301,7 +330,7 @@ func (b *Bot) closeTicket(i *discordgo.InteractionCreate) {
 		b.replyEphemeral(i, msgInternal)
 		return
 	}
-	if !canManageTicket(i.Member, ticket, settings.StaffRoleID) {
+	if !canManageTicket(i.Member, ticket, b.staffRoleFor(ctx, ticket, settings)) {
 		b.replyEphemeral(i, "No puedes cerrar este ticket.")
 		return
 	}
@@ -379,7 +408,7 @@ func (b *Bot) deleteTicket(i *discordgo.InteractionCreate) {
 		b.replyEphemeral(i, msgInternal)
 		return
 	}
-	if !isStaff(i.Member, settings.StaffRoleID) {
+	if !isStaff(i.Member, b.staffRoleFor(ctx, ticket, settings)) {
 		b.replyEphemeral(i, "Solo el staff puede eliminar tickets.")
 		return
 	}
@@ -411,7 +440,7 @@ func (b *Bot) transcribeTicket(i *discordgo.InteractionCreate) {
 		b.replyEphemeral(i, msgInternal)
 		return
 	}
-	if !isStaff(i.Member, settings.StaffRoleID) {
+	if !isStaff(i.Member, b.staffRoleFor(ctx, ticket, settings)) {
 		b.replyEphemeral(i, "Solo el staff puede transcribir tickets.")
 		return
 	}

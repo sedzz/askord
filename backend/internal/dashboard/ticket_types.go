@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -62,6 +63,7 @@ func (h *Handler) CreateTicketType(w http.ResponseWriter, r *http.Request) {
 		typeError(w, err)
 		return
 	}
+	h.refreshPanel(r.Context(), guildID)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(t)
@@ -85,6 +87,7 @@ func (h *Handler) UpdateTicketType(w http.ResponseWriter, r *http.Request) {
 		typeError(w, err)
 		return
 	}
+	h.refreshPanel(r.Context(), guildID)
 	writeJSON(w, t)
 }
 
@@ -101,6 +104,7 @@ func (h *Handler) DeleteTicketType(w http.ResponseWriter, r *http.Request) {
 		typeError(w, err)
 		return
 	}
+	h.refreshPanel(r.Context(), guildID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -121,7 +125,25 @@ func (h *Handler) ReorderTicketTypes(w http.ResponseWriter, r *http.Request) {
 		typeError(w, err)
 		return
 	}
+	h.refreshPanel(r.Context(), guildID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// refreshPanel pone al día el panel ya publicado con los tipos actuales, para que no haya
+// que volver a publicarlo. Es de mejor esfuerzo: si falla, el cambio ya está guardado.
+func (h *Handler) refreshPanel(ctx context.Context, guildID string) {
+	settings, err := h.store.GetTicketSettings(ctx, guildID)
+	if err != nil || settings == nil || settings.PanelChannelID == "" || settings.PanelMessageID == "" {
+		return
+	}
+	types, err := h.store.ListTicketTypes(ctx, guildID)
+	if err != nil {
+		slog.Warn("listar tipos para el panel", "guild", guildID, "err", err)
+		return
+	}
+	if err := h.bot.UpdatePanel(settings.PanelChannelID, settings.PanelMessageID, types); err != nil {
+		slog.Warn("actualizar panel", "guild", guildID, "err", err)
+	}
 }
 
 func typeID(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -158,7 +180,7 @@ func (h *Handler) readTypeInput(w http.ResponseWriter, r *http.Request, guildID 
 	if utf8.RuneCountInString(in.Description) > maxTypeDescription {
 		return fail("la descripcion admite hasta 100 caracteres")
 	}
-	if utf8.RuneCountInString(in.Emoji) > maxTypeEmoji || strings.IndexFunc(in.Emoji, unicode.IsSpace) >= 0 {
+	if in.Emoji != "" && (utf8.RuneCountInString(in.Emoji) > maxTypeEmoji || strings.IndexFunc(in.Emoji, unicode.IsSpace) >= 0 || !bot.ValidEmoji(in.Emoji)) {
 		return fail("el emoji no es valido")
 	}
 

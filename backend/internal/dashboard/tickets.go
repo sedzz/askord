@@ -113,7 +113,17 @@ func (h *Handler) PublishPanel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messageID, err := h.bot.PublishPanel(in.ChannelID, settings.PanelChannelID, settings.PanelMessageID)
+	if err := h.store.EnsureDefaultTicketType(r.Context(), guildID); err != nil {
+		slog.Error("crear tipo por defecto", "err", err)
+	}
+	types, err := h.store.ListTicketTypes(r.Context(), guildID)
+	if err != nil {
+		slog.Error("listar tipos de ticket", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+
+	messageID, err := h.bot.PublishPanel(in.ChannelID, settings.PanelChannelID, settings.PanelMessageID, types)
 	if errors.Is(err, bot.ErrMissingPermissions) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
