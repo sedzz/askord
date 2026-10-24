@@ -154,6 +154,9 @@ func (s *Store) DeleteGuildData(ctx context.Context, guildID string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM tickets WHERE guild_id = $1`, guildID); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM ticket_types WHERE guild_id = $1`, guildID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM ticket_settings WHERE guild_id = $1`, guildID); err != nil {
 		return err
 	}

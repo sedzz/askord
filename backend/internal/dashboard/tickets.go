@@ -169,6 +169,9 @@ func (h *Handler) PutTickets(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}
+	if err := h.store.EnsureDefaultTicketType(r.Context(), guildID); err != nil {
+		slog.Error("crear tipo por defecto", "err", err)
+	}
 	writeJSON(w, in)
 }
 

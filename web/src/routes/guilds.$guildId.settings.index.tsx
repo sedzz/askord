@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { toast } from '../lib/toast'
 import { useSetup } from '../lib/ticketSetupContext'
 
-export const Route = createFileRoute('/guilds/$guildId/settings')({
+export const Route = createFileRoute('/guilds/$guildId/settings/')({
   component: Settings,
 })
 
@@ -22,7 +22,7 @@ function Settings() {
   }
 
   return (
-    <div>
+    <div className="settings-page">
       <h1>Configuración</h1>
       <p>Sigue los tres pasos para que tus miembros puedan abrir tickets desde Discord.</p>
 

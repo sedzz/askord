@@ -1,0 +1,14 @@
+.ui-field {
+  display: grid;
+  gap: 6px;
+}
+
+.ui-field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.ui-field small {
+  font-size: 0.8125rem;
+}

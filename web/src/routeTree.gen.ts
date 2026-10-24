@@ -13,7 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as GuildsGuildIdRouteImport } from './routes/guilds.$guildId'
 import { Route as GuildsGuildIdIndexRouteImport } from './routes/guilds.$guildId.index'
-import { Route as GuildsGuildIdSettingsRouteImport } from './routes/guilds.$guildId.settings'
+import { Route as GuildsGuildIdSettingsIndexRouteImport } from './routes/guilds.$guildId.settings.index'
+import { Route as GuildsGuildIdSettingsTicketsRouteImport } from './routes/guilds.$guildId.settings.tickets'
 import { Route as GuildsGuildIdTranscriptsIndexRouteImport } from './routes/guilds.$guildId.transcripts.index'
 import { Route as GuildsGuildIdTranscriptsTicketIdRouteImport } from './routes/guilds.$guildId.transcripts.$ticketId'
 
@@ -37,11 +38,18 @@ const GuildsGuildIdIndexRoute = GuildsGuildIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => GuildsGuildIdRoute,
 } as any)
-const GuildsGuildIdSettingsRoute = GuildsGuildIdSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => GuildsGuildIdRoute,
-} as any)
+const GuildsGuildIdSettingsIndexRoute =
+  GuildsGuildIdSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => GuildsGuildIdRoute,
+  } as any)
+const GuildsGuildIdSettingsTicketsRoute =
+  GuildsGuildIdSettingsTicketsRouteImport.update({
+    id: '/settings/tickets',
+    path: '/settings/tickets',
+    getParentRoute: () => GuildsGuildIdRoute,
+  } as any)
 const GuildsGuildIdTranscriptsIndexRoute =
   GuildsGuildIdTranscriptsIndexRouteImport.update({
     id: '/transcripts/',
@@ -59,17 +67,19 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
-  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
   '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/settings/tickets': typeof GuildsGuildIdSettingsTicketsRoute
   '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/settings/': typeof GuildsGuildIdSettingsIndexRoute
   '/guilds/$guildId/transcripts/': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
   '/guilds/$guildId': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/settings/tickets': typeof GuildsGuildIdSettingsTicketsRoute
   '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsIndexRoute
   '/guilds/$guildId/transcripts': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRoutesById {
@@ -77,9 +87,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/guilds/$guildId': typeof GuildsGuildIdRouteWithChildren
-  '/guilds/$guildId/settings': typeof GuildsGuildIdSettingsRoute
   '/guilds/$guildId/': typeof GuildsGuildIdIndexRoute
+  '/guilds/$guildId/settings/tickets': typeof GuildsGuildIdSettingsTicketsRoute
   '/guilds/$guildId/transcripts/$ticketId': typeof GuildsGuildIdTranscriptsTicketIdRoute
+  '/guilds/$guildId/settings/': typeof GuildsGuildIdSettingsIndexRoute
   '/guilds/$guildId/transcripts/': typeof GuildsGuildIdTranscriptsIndexRoute
 }
 export interface FileRouteTypes {
@@ -88,26 +99,29 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/guilds/$guildId'
-    | '/guilds/$guildId/settings'
     | '/guilds/$guildId/'
+    | '/guilds/$guildId/settings/tickets'
     | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/settings/'
     | '/guilds/$guildId/transcripts/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
-    | '/guilds/$guildId/settings'
     | '/guilds/$guildId'
+    | '/guilds/$guildId/settings/tickets'
     | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/settings'
     | '/guilds/$guildId/transcripts'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/guilds/$guildId'
-    | '/guilds/$guildId/settings'
     | '/guilds/$guildId/'
+    | '/guilds/$guildId/settings/tickets'
     | '/guilds/$guildId/transcripts/$ticketId'
+    | '/guilds/$guildId/settings/'
     | '/guilds/$guildId/transcripts/'
   fileRoutesById: FileRoutesById
 }
@@ -147,11 +161,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuildsGuildIdIndexRouteImport
       parentRoute: typeof GuildsGuildIdRoute
     }
-    '/guilds/$guildId/settings': {
-      id: '/guilds/$guildId/settings'
+    '/guilds/$guildId/settings/': {
+      id: '/guilds/$guildId/settings/'
       path: '/settings'
-      fullPath: '/guilds/$guildId/settings'
-      preLoaderRoute: typeof GuildsGuildIdSettingsRouteImport
+      fullPath: '/guilds/$guildId/settings/'
+      preLoaderRoute: typeof GuildsGuildIdSettingsIndexRouteImport
+      parentRoute: typeof GuildsGuildIdRoute
+    }
+    '/guilds/$guildId/settings/tickets': {
+      id: '/guilds/$guildId/settings/tickets'
+      path: '/settings/tickets'
+      fullPath: '/guilds/$guildId/settings/tickets'
+      preLoaderRoute: typeof GuildsGuildIdSettingsTicketsRouteImport
       parentRoute: typeof GuildsGuildIdRoute
     }
     '/guilds/$guildId/transcripts/': {
@@ -172,16 +193,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface GuildsGuildIdRouteChildren {
-  GuildsGuildIdSettingsRoute: typeof GuildsGuildIdSettingsRoute
   GuildsGuildIdIndexRoute: typeof GuildsGuildIdIndexRoute
+  GuildsGuildIdSettingsTicketsRoute: typeof GuildsGuildIdSettingsTicketsRoute
   GuildsGuildIdTranscriptsTicketIdRoute: typeof GuildsGuildIdTranscriptsTicketIdRoute
+  GuildsGuildIdSettingsIndexRoute: typeof GuildsGuildIdSettingsIndexRoute
   GuildsGuildIdTranscriptsIndexRoute: typeof GuildsGuildIdTranscriptsIndexRoute
 }
 
 const GuildsGuildIdRouteChildren: GuildsGuildIdRouteChildren = {
-  GuildsGuildIdSettingsRoute: GuildsGuildIdSettingsRoute,
   GuildsGuildIdIndexRoute: GuildsGuildIdIndexRoute,
+  GuildsGuildIdSettingsTicketsRoute: GuildsGuildIdSettingsTicketsRoute,
   GuildsGuildIdTranscriptsTicketIdRoute: GuildsGuildIdTranscriptsTicketIdRoute,
+  GuildsGuildIdSettingsIndexRoute: GuildsGuildIdSettingsIndexRoute,
   GuildsGuildIdTranscriptsIndexRoute: GuildsGuildIdTranscriptsIndexRoute,
 }
 
