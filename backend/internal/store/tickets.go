@@ -70,3 +70,30 @@ func (s *Store) CloseTicketByChannel(ctx context.Context, channelID string) erro
 		WHERE channel_id = $1 AND status = 'open'`, channelID)
 	return err
 }
+
+// TicketByChannel devuelve el ticket de un canal y su estado, o nil si no es un ticket.
+func (s *Store) TicketByChannel(ctx context.Context, channelID string) (*Ticket, string, error) {
+	var (
+		t      Ticket
+		status string
+	)
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, guild_id, number, channel_id, opener_id, status FROM tickets
+		WHERE channel_id = $1`, channelID).
+		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	return &t, status, nil
+}
+
+// CloseTicket cierra el ticket de forma atómica; false si ya estaba cerrado.
+func (s *Store) CloseTicket(ctx context.Context, channelID, closedBy string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE tickets SET status = 'closed', closed_at = now(), closed_by = $2
+		WHERE channel_id = $1 AND status = 'open'`, channelID, closedBy)
+	return tag.RowsAffected() == 1, err
+}

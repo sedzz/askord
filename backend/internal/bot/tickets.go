@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -14,7 +15,11 @@ import (
 	"github.com/sedzz/askord/internal/store"
 )
 
-const customIDOpenTicket = "ticket:open"
+const (
+	customIDOpenTicket   = "ticket:open"
+	customIDCloseTicket  = "ticket:close"
+	customIDDeleteTicket = "ticket:delete"
+)
 
 const (
 	// Lo que ve y puede hacer quien participa en un ticket.
@@ -85,8 +90,13 @@ func (b *Bot) onInteraction(_ *discordgo.Session, i *discordgo.InteractionCreate
 	if i.Type != discordgo.InteractionMessageComponent || i.GuildID == "" || i.Member == nil {
 		return
 	}
-	if i.MessageComponentData().CustomID == customIDOpenTicket {
+	switch i.MessageComponentData().CustomID {
+	case customIDOpenTicket:
 		b.openTicket(i)
+	case customIDCloseTicket:
+		b.closeTicket(i)
+	case customIDDeleteTicket:
+		b.deleteTicket(i)
 	}
 }
 
@@ -184,6 +194,12 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User) string {
 			Users: []string{user.ID},
 			Roles: []string{settings.StaffRoleID},
 		},
+		Components: []discordgo.MessageComponent{buttonRow(discordgo.Button{
+			Label:    "Cerrar ticket",
+			Style:    discordgo.SecondaryButton,
+			CustomID: customIDCloseTicket,
+			Emoji:    &discordgo.ComponentEmoji{Name: "🔒"},
+		})},
 	})
 	if err != nil {
 		slog.Error("enviar bienvenida", "channel", channel.ID, "err", err)
@@ -228,4 +244,132 @@ func (b *Bot) CreateTextChannel(guildID, name string) (Option, error) {
 		return Option{}, wrapPermissionError(err)
 	}
 	return Option{ID: c.ID, Name: c.Name}, nil
+}
+
+func buttonRow(b discordgo.Button) discordgo.MessageComponent {
+	return discordgo.ActionsRow{Components: []discordgo.MessageComponent{b}}
+}
+
+// canManageTicket: quien abrió el ticket, el rol de staff o un administrador.
+func canManageTicket(m *discordgo.Member, t *store.Ticket, staffRoleID string) bool {
+	return m.User.ID == t.OpenerID || isStaff(m, staffRoleID)
+}
+
+// isStaff: miembros del rol de staff o administradores.
+func isStaff(m *discordgo.Member, staffRoleID string) bool {
+	return slices.Contains(m.Roles, staffRoleID) || m.Permissions&discordgo.PermissionAdministrator != 0
+}
+
+// replyEphemeral responde solo al usuario que pulsó el botón.
+func (b *Bot) replyEphemeral(i *discordgo.InteractionCreate, msg string) {
+	err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: msg, Flags: discordgo.MessageFlagsEphemeral},
+	})
+	if err != nil {
+		slog.Error("responder interaccion", "err", err)
+	}
+}
+
+// closeTicket cierra el ticket: el usuario pierde el acceso, el canal se renombra
+// y el staff conserva el historial hasta eliminarlo con el botón.
+func (b *Bot) closeTicket(i *discordgo.InteractionCreate) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	ticket, status, err := b.store.TicketByChannel(ctx, i.ChannelID)
+	if err != nil {
+		slog.Error("buscar ticket", "channel", i.ChannelID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if ticket == nil || status != "open" {
+		b.replyEphemeral(i, "Este ticket ya está cerrado.")
+		return
+	}
+	settings, err := b.store.GetTicketSettings(ctx, ticket.GuildID)
+	if err != nil || settings == nil {
+		slog.Error("leer configuracion de tickets", "guild", ticket.GuildID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if !canManageTicket(i.Member, ticket, settings.StaffRoleID) {
+		b.replyEphemeral(i, "No puedes cerrar este ticket.")
+		return
+	}
+
+	// Se difiere para poder editar el mensaje del botón cuando todo esté hecho.
+	if err := b.session.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	}); err != nil {
+		slog.Error("responder interaccion", "err", err)
+		return
+	}
+
+	closed, err := b.store.CloseTicket(ctx, ticket.ChannelID, i.Member.User.ID)
+	if err != nil {
+		slog.Error("cerrar ticket", "channel", ticket.ChannelID, "err", err)
+		return
+	}
+	if !closed { // otra pulsación se adelantó
+		return
+	}
+
+	if err := b.session.ChannelPermissionDelete(ticket.ChannelID, ticket.OpenerID); err != nil {
+		slog.Error("quitar acceso al usuario", "channel", ticket.ChannelID, "err", err)
+	}
+	_, err = b.session.ChannelEdit(ticket.ChannelID, &discordgo.ChannelEdit{
+		Name: fmt.Sprintf("cerrado-%04d", ticket.Number),
+	})
+	if err != nil {
+		slog.Error("renombrar canal", "channel", ticket.ChannelID, "err", err)
+	}
+
+	content := fmt.Sprintf("🔒 Ticket cerrado por <@%s>. El staff puede eliminar el canal cuando quiera.", i.Member.User.ID)
+	_, err = b.session.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content:         &content,
+		AllowedMentions: &discordgo.MessageAllowedMentions{},
+		Components: &[]discordgo.MessageComponent{buttonRow(discordgo.Button{
+			Label:    "Eliminar ticket",
+			Style:    discordgo.DangerButton,
+			CustomID: customIDDeleteTicket,
+			Emoji:    &discordgo.ComponentEmoji{Name: "🗑️"},
+		})},
+	})
+	if err != nil {
+		slog.Error("editar mensaje del ticket", "channel", ticket.ChannelID, "err", err)
+	}
+	slog.Info("ticket cerrado", "guild", ticket.GuildID, "number", ticket.Number, "by", i.Member.User.ID)
+}
+
+// deleteTicket elimina el canal de un ticket ya cerrado. Solo el staff.
+func (b *Bot) deleteTicket(i *discordgo.InteractionCreate) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	ticket, status, err := b.store.TicketByChannel(ctx, i.ChannelID)
+	if err != nil {
+		slog.Error("buscar ticket", "channel", i.ChannelID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if ticket == nil || status != "closed" {
+		b.replyEphemeral(i, "Este ticket no se puede eliminar.")
+		return
+	}
+	settings, err := b.store.GetTicketSettings(ctx, ticket.GuildID)
+	if err != nil || settings == nil {
+		slog.Error("leer configuracion de tickets", "guild", ticket.GuildID, "err", err)
+		b.replyEphemeral(i, msgInternal)
+		return
+	}
+	if !isStaff(i.Member, settings.StaffRoleID) {
+		b.replyEphemeral(i, "Solo el staff puede eliminar tickets.")
+		return
+	}
+
+	b.replyEphemeral(i, "Eliminando el ticket…")
+	if _, err := b.session.ChannelDelete(ticket.ChannelID); err != nil {
+		slog.Error("eliminar canal", "channel", ticket.ChannelID, "err", err)
+	}
 }
