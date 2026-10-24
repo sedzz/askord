@@ -1,10 +1,12 @@
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import '../components/transcripts.css'
 import { Button } from '../components/ui/Button'
 import { buttonClassName } from '../components/ui/button-styles'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
+import { ticketTypesQuery } from '../lib/ticketTypes'
 import { TranscriptRowsSkeleton } from '../components/skeletons'
 import { formatDate, ticketNumber } from '../lib/format'
 import {
@@ -21,7 +23,13 @@ export const Route = createFileRoute('/guilds/$guildId/transcripts/')({
   validateSearch: (search: Record<string, unknown>): TranscriptFilters => {
     const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
     const date = (v: unknown) => (typeof v === 'string' && DATE.test(v) ? v : undefined)
-    return { from: date(search.from), to: date(search.to), user: text(search.user) }
+    const id = (v: unknown) => (typeof v === 'string' && /^\d+$/.test(v) ? v : undefined)
+    return {
+      from: date(search.from),
+      to: date(search.to),
+      user: text(search.user),
+      type: id(search.type),
+    }
   },
   component: Transcripts,
 })
@@ -36,6 +44,7 @@ function Transcripts() {
   const { guildId } = Route.useParams()
   const filters = Route.useSearch()
   const navigate = Route.useNavigate()
+  const { data: types } = useQuery(ticketTypesQuery(guildId))
 
   const { data, isPending, isError, isFetchingNextPage, hasNextPage, fetchNextPage } =
     useInfiniteQuery({
@@ -59,7 +68,7 @@ function Transcripts() {
     return () => clearTimeout(id)
   }, [userInput, filters.user, navigate])
 
-  const hasFilters = Boolean(filters.from || filters.to || filters.user)
+  const hasFilters = Boolean(filters.from || filters.to || filters.user || filters.type)
   const items = data?.pages.flatMap((p) => p.items) ?? []
 
   function clearFilters() {
@@ -108,6 +117,21 @@ function Transcripts() {
             onChange={(e) => setFilter('to', e.target.value)}
           />
         </label>
+        <div className="filter filter-type">
+          <span id="type-filter-label">Tipo</span>
+          <Select
+            labelledBy="type-filter-label"
+            value={filters.type ?? ''}
+            onChange={(v) => setFilter('type', v)}
+            options={[
+              { value: '', label: 'Todos los tipos' },
+              ...(types ?? []).map((t) => ({
+                value: String(t.id),
+                label: `${t.emoji} ${t.name}`.trim(),
+              })),
+            ]}
+          />
+        </div>
         <label className="filter filter-grow">
           <span>Usuario</span>
           <Input
@@ -147,6 +171,11 @@ function Transcripts() {
                   <span className="transcript-number">#{ticketNumber(t.number)}</span>
                   <span className="transcript-user">{t.openerName}</span>
                   <span className="transcript-preview">{t.preview}</span>
+                  {t.typeName ? (
+                    <span className="chip">{`${t.typeEmoji} ${t.typeName}`.trim()}</span>
+                  ) : (
+                    <span />
+                  )}
                   <span className="transcript-meta">{formatDate(t.createdAt)}</span>
                   <span className="transcript-meta">
                     {t.messages} {t.messages === 1 ? 'mensaje' : 'mensajes'}

@@ -61,6 +61,7 @@ function TranscriptDetail() {
         </div>
       </div>
       <p>
+        {t.typeName && <span className="chip">{`${t.typeEmoji} ${t.typeName}`.trim()}</span>}{' '}
         Abierto por <strong>{t.openerName}</strong> el {formatDateTime(t.createdAt)}
         {t.closedAt && ` · cerrado el ${formatDateTime(t.closedAt)}`}
       </p>

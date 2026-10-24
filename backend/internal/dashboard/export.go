@@ -38,12 +38,13 @@ func writeExport(w http.ResponseWriter, format, name string, transcripts []store
 func writeCSV(w http.ResponseWriter, transcripts []store.Transcript) {
 	_, _ = w.Write([]byte("\xEF\xBB\xBF"))
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"ticket", "estado", "fecha", "autor", "autor_id", "mensaje", "adjuntos"})
+	_ = cw.Write([]string{"ticket", "estado", "tipo", "fecha", "autor", "autor_id", "mensaje", "adjuntos"})
 	for _, t := range transcripts {
 		for _, m := range t.Conversation {
 			_ = cw.Write([]string{
 				fmt.Sprintf("%04d", t.Number),
 				t.Status,
+				safeCell(typeLabel(t.TypeEmoji, t.TypeName)),
 				m.CreatedAt.UTC().Format(exportTimeLayout),
 				safeCell(m.AuthorName),
 				m.AuthorID,
@@ -70,6 +71,9 @@ func writeText(w http.ResponseWriter, transcripts []store.Transcript) {
 			fmt.Fprint(w, "\n"+strings.Repeat("=", 60)+"\n\n")
 		}
 		fmt.Fprintf(w, "Ticket #%04d — abierto por %s\n", t.Number, t.OpenerName)
+		if label := typeLabel(t.TypeEmoji, t.TypeName); label != "" {
+			fmt.Fprintf(w, "Tipo: %s\n", label)
+		}
 		fmt.Fprintf(w, "Estado: %s · Creado: %s UTC", t.Status, t.CreatedAt.UTC().Format(exportTimeLayout))
 		if t.ClosedAt != nil {
 			fmt.Fprintf(w, " · Cerrado: %s UTC", t.ClosedAt.UTC().Format(exportTimeLayout))
@@ -82,4 +86,9 @@ func writeText(w http.ResponseWriter, transcripts []store.Transcript) {
 			}
 		}
 	}
+}
+
+// typeLabel junta emoji y nombre del tipo; vacío si el ticket no tiene tipo.
+func typeLabel(emoji, name string) string {
+	return strings.TrimSpace(emoji + " " + name)
 }

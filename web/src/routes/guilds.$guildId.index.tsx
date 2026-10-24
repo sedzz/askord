@@ -6,7 +6,7 @@ import { BarChart } from '../components/ui/BarChart'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { DashboardSkeleton } from '../components/skeletons'
 import { formatDate, formatDay, formatDuration, formatNumber } from '../lib/format'
-import { overviewQuery, type GuildOverview, type Range } from '../lib/overview'
+import { overviewQuery, type GuildOverview, type Range, type TypeCount } from '../lib/overview'
 
 export const Route = createFileRoute('/guilds/$guildId/')({
   component: Dashboard,
@@ -30,7 +30,7 @@ function Dashboard() {
   if (isPending) return <DashboardSkeleton />
   if (isError) return <p className="error">No se pudo cargar el dashboard.</p>
 
-  const { guild, tickets, series } = data
+  const { guild, tickets, series, types } = data
   const openedInRange = series.reduce((sum, p) => sum + p.opened, 0)
 
   return (
@@ -71,7 +71,40 @@ function Dashboard() {
           ariaLabel={`Tickets abiertos por día durante los últimos ${days} días: ${openedInRange} en total`}
         />
       </section>
+
+      <TicketsByType types={types} days={days} />
     </div>
+  )
+}
+
+// Cuántos tickets se abrieron de cada tipo en el rango elegido, con una barra proporcional.
+function TicketsByType({ types, days }: { types: TypeCount[]; days: Range }) {
+  const total = types.reduce((sum, t) => sum + t.count, 0)
+  const max = Math.max(1, ...types.map((t) => t.count))
+
+  return (
+    <section className="card">
+      <h2>Tickets por tipo</h2>
+      <p className="card-sub">
+        {total === 0
+          ? `Ningún ticket en los últimos ${days} días`
+          : `${formatNumber(total)} ${total === 1 ? 'ticket' : 'tickets'} en los últimos ${days} días`}
+      </p>
+
+      <ul className="type-bars">
+        {types.map((t) => (
+          <li key={t.typeId || t.name}>
+            <div className="type-bar-head">
+              <span>{`${t.emoji} ${t.name}`.trim()}</span>
+              <strong>{formatNumber(t.count)}</strong>
+            </div>
+            <div className="type-bar-track" aria-hidden="true">
+              <div className="type-bar-fill" style={{ width: `${(t.count / max) * 100}%` }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

@@ -21,6 +21,14 @@ func filterFromQuery(r *http.Request) (store.TranscriptFilter, error) {
 	q := r.URL.Query()
 	f := store.TranscriptFilter{User: strings.TrimSpace(q.Get("user"))}
 
+	if v := q.Get("type"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id < 0 {
+			return f, fmt.Errorf("tipo invalido")
+		}
+		f.TypeID = id
+	}
+
 	if v := q.Get("from"); v != "" {
 		t, err := time.Parse(time.DateOnly, v)
 		if err != nil {

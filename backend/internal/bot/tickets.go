@@ -173,6 +173,7 @@ func (b *Bot) createTicket(guildID string, user *discordgo.User, typeID int64) s
 
 	err = b.store.CreateTicket(ctx, store.Ticket{
 		GuildID: guildID, Number: number, ChannelID: channel.ID, OpenerID: user.ID, TypeID: ticketType.ID,
+		TypeName: ticketType.Name, TypeEmoji: ticketType.Emoji,
 	})
 	if err != nil {
 		_, _ = b.session.ChannelDelete(channel.ID)

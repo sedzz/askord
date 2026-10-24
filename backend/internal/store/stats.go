@@ -61,3 +61,56 @@ func (s *Store) TicketSeries(ctx context.Context, guildID string, days int) ([]S
 	}
 	return out, rows.Err()
 }
+
+// TypeCount es cuántos tickets de un tipo se abrieron en un periodo.
+type TypeCount struct {
+	TypeID int64  `json:"typeId"` // 0 en la fila "otros"
+	Name   string `json:"name"`
+	Emoji  string `json:"emoji"`
+	Count  int    `json:"count"`
+}
+
+// TicketsByType cuenta los tickets abiertos en los últimos days días (el de hoy incluido),
+// por cada tipo actual del servidor en su orden y, aparte, los que no tienen tipo o cuyo
+// tipo se borró ("otros", con typeId 0, solo si los hay).
+func (s *Store) TicketsByType(ctx context.Context, guildID string, days int) ([]TypeCount, error) {
+	since := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -(days - 1))
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT ty.id, ty.name, ty.emoji, count(t.id)
+		FROM ticket_types ty
+		LEFT JOIN tickets t
+		       ON t.guild_id = ty.guild_id AND t.type_id = ty.id AND t.created_at >= $2
+		WHERE ty.guild_id = $1
+		GROUP BY ty.id
+		ORDER BY ty.position, ty.id`, guildID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []TypeCount{}
+	for rows.Next() {
+		var c TypeCount
+		if err := rows.Scan(&c.TypeID, &c.Name, &c.Emoji, &c.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var others int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM tickets t
+		WHERE t.guild_id = $1 AND t.created_at >= $2
+		  AND NOT EXISTS (SELECT 1 FROM ticket_types ty WHERE ty.id = t.type_id AND ty.guild_id = t.guild_id)`,
+		guildID, since).Scan(&others); err != nil {
+		return nil, err
+	}
+	if others > 0 {
+		out = append(out, TypeCount{Name: "Otros", Count: others})
+	}
+	return out, nil
+}

@@ -38,7 +38,7 @@
 
 .transcript-row {
   display: grid;
-  grid-template-columns: 70px 140px 1fr auto auto;
+  grid-template-columns: 70px 140px 1fr auto auto auto;
   gap: 24px;
   align-items: center;
   padding: 12px;
@@ -82,4 +82,18 @@
 .conversation {
   display: grid;
   gap: 16px;
+}
+
+.filter-type {
+  width: 200px;
+}
+
+/* Etiqueta del tipo del ticket, en la lista y en el detalle. */
+.chip {
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  color: var(--text-h);
+  white-space: nowrap;
+  background: rgb(255 255 255 / 8%);
+  border-radius: 999px;
 }

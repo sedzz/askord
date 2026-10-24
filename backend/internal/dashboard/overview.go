@@ -14,6 +14,8 @@ type overviewResponse struct {
 	Guild   *bot.GuildOverview  `json:"guild"`
 	Tickets store.TicketStats   `json:"tickets"`
 	Series  []store.SeriesPoint `json:"series"`
+	// Tickets abiertos por tipo en el mismo rango que la gráfica.
+	Types []store.TypeCount `json:"types"`
 }
 
 // Rangos de la gráfica que se permiten, en días.
@@ -60,7 +62,14 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := overviewResponse{Tickets: stats, Series: series}
+	byType, err := h.store.TicketsByType(r.Context(), guildID, days)
+	if err != nil {
+		slog.Error("tickets por tipo", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+
+	resp := overviewResponse{Tickets: stats, Series: series, Types: byType}
 	if res := <-guildCh; res.err != nil {
 		slog.Warn("ficha del servidor", "guild", guildID, "err", res.err)
 	} else {

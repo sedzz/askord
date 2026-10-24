@@ -9,6 +9,10 @@ export type TranscriptSummary = {
   createdAt: string
   closedAt: string | null
   messages: number
+  // Tipo del ticket (el actual o, si se borró, el que tenía al abrirse); vacío si no tiene.
+  typeId: number
+  typeName: string
+  typeEmoji: string
   // Primer mensaje con texto de quien abrió el ticket, recortado.
   preview: string
 }
@@ -27,7 +31,7 @@ export type TranscriptMessage = {
 export type Transcript = TranscriptSummary & { conversation: TranscriptMessage[] }
 
 // Fechas en formato YYYY-MM-DD (ambas inclusivas) y usuario por nombre o ID.
-export type TranscriptFilters = { from?: string; to?: string; user?: string }
+export type TranscriptFilters = { from?: string; to?: string; user?: string; type?: string }
 
 export type ExportFormat = 'csv' | 'json' | 'txt'
 
@@ -36,6 +40,7 @@ function filterParams(filters: TranscriptFilters): URLSearchParams {
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
   if (filters.user) params.set('user', filters.user)
+  if (filters.type) params.set('type', filters.type)
   return params
 }
 

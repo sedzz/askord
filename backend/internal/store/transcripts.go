@@ -11,6 +11,8 @@ type TranscriptFilter struct {
 	From *time.Time
 	To   *time.Time
 	User string
+	// 0 no filtra por tipo.
+	TypeID int64
 }
 
 type TranscriptSummary struct {
@@ -22,6 +24,10 @@ type TranscriptSummary struct {
 	CreatedAt  time.Time  `json:"createdAt"`
 	ClosedAt   *time.Time `json:"closedAt"`
 	Messages   int        `json:"messages"`
+	// Tipo del ticket: el actual si sigue existiendo y, si no, el que tenía al abrirse.
+	TypeID    int64  `json:"typeId"`
+	TypeName  string `json:"typeName"`
+	TypeEmoji string `json:"typeEmoji"`
 	// Primer mensaje con texto de quien abrió el ticket (recortado): de qué se habló.
 	Preview string `json:"preview"`
 }
@@ -52,7 +58,8 @@ const transcriptWhere = `
 		SELECT 1 FROM ticket_messages u
 		WHERE u.ticket_id = t.id
 		  AND (u.author_id = $4 OR strpos(lower(u.author_name), lower($4)) > 0)))
-	AND ($5::bigint = 0 OR t.id = $5)`
+	AND ($5::bigint = 0 OR t.id = $5)
+	AND ($6::bigint = 0 OR t.type_id = $6)`
 
 const transcriptColumns = `
 	t.id, t.number, t.opener_id,
@@ -63,7 +70,8 @@ const transcriptColumns = `
 	(SELECT count(*) FROM ticket_messages m WHERE m.ticket_id = t.id),
 	COALESCE((SELECT left(m.content, 200) FROM ticket_messages m
 	          WHERE m.ticket_id = t.id AND m.author_id = t.opener_id AND m.content <> ''
-	          ORDER BY m.created_at LIMIT 1), '')`
+	          ORDER BY m.created_at LIMIT 1), ''),
+	COALESCE(t.type_id, 0), COALESCE(ty.name, t.type_name), COALESCE(ty.emoji, t.type_emoji)`
 
 // ListTranscripts devuelve los tickets con transcripción, del más reciente al más antiguo.
 // ticketID a 0 no filtra por ticket.
@@ -71,10 +79,11 @@ func (s *Store) ListTranscripts(ctx context.Context, guildID string, f Transcrip
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+transcriptColumns+`
 		FROM tickets t
+		LEFT JOIN ticket_types ty ON ty.id = t.type_id AND ty.guild_id = t.guild_id
 		WHERE `+transcriptWhere+`
 		ORDER BY t.created_at DESC
-		LIMIT $6 OFFSET $7`,
-		guildID, f.From, f.To, f.User, ticketID, limit, offset)
+		LIMIT $7 OFFSET $8`,
+		guildID, f.From, f.To, f.User, ticketID, f.TypeID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +93,7 @@ func (s *Store) ListTranscripts(ctx context.Context, guildID string, f Transcrip
 	for rows.Next() {
 		var t TranscriptSummary
 		if err := rows.Scan(&t.ID, &t.Number, &t.OpenerID, &t.OpenerName, &t.Status,
-			&t.CreatedAt, &t.ClosedAt, &t.Messages, &t.Preview); err != nil {
+			&t.CreatedAt, &t.ClosedAt, &t.Messages, &t.Preview, &t.TypeID, &t.TypeName, &t.TypeEmoji); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

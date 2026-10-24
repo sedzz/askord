@@ -25,6 +25,15 @@ export type Overview = {
   guild: GuildOverview | null
   tickets: TicketStats
   series: SeriesPoint[]
+  // Tickets abiertos por tipo en el mismo rango que la gráfica.
+  types: TypeCount[]
+}
+
+export type TypeCount = {
+  typeId: number // 0 en la fila "Otros"
+  name: string
+  emoji: string
+  count: number
 }
 
 export type Range = 7 | 30 | 90

@@ -107,3 +107,34 @@
   line-height: 1.2;
   color: var(--text-h);
 }
+
+/* Tickets por tipo */
+.type-bars {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 16px 0 0;
+  list-style: none;
+}
+
+.type-bar-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 0.875rem;
+  color: var(--text-h);
+}
+
+.type-bar-track {
+  height: 8px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 6%);
+  border-radius: 999px;
+}
+
+.type-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 0.3s;
+}
