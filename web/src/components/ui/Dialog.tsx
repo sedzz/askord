@@ -6,6 +6,7 @@ type Props = {
   onOpenChange: (open: boolean) => void
   title: string
   description?: string
+  size?: 'md' | 'lg'
   // Con false no se puede cerrar con Esc, la × ni pulsando fuera: solo lo cierra el padre.
   dismissible?: boolean
   children: ReactNode
@@ -17,6 +18,7 @@ export function Dialog({
   onOpenChange,
   title,
   description,
+  size = 'md',
   dismissible = true,
   children,
 }: Props) {
@@ -33,7 +35,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="ui-dialog"
+      className={size === 'lg' ? 'ui-dialog ui-dialog-lg' : 'ui-dialog'}
       aria-labelledby={titleId}
       // Esc: se cancela el cierre si el diálogo no es descartable.
       onCancel={(e) => {

@@ -38,11 +38,12 @@ export function SelectField({
 
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
+      <span id={`${id}-label`}>{label}</span>
       <small>{help}</small>
       <div className="field-row">
         <Select
           id={id}
+          labelledBy={`${id}-label`}
           value={value}
           onChange={onChange}
           options={options.map((o) => ({ value: o.id, label: optionPrefix + o.name }))}

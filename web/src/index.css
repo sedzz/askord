@@ -358,3 +358,8 @@ h2 {
   display: flex;
   justify-content: space-between;
 }
+
+/* Vista previa de Discord dentro del tour. */
+.preview {
+  margin-top: 4px;
+}

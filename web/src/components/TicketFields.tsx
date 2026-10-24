@@ -40,7 +40,8 @@ export function CategoryField({ setup }: Props) {
   )
 }
 
-export function PanelField({ setup }: Props) {
+// Con publishButton={false} no hay botón: quien lo use (el tour) publica por su cuenta.
+export function PanelField({ setup, publishButton = true }: Props & { publishButton?: boolean }) {
   const { publish } = setup
   const published = Boolean(setup.config.settings?.panelChannelId)
 
@@ -58,13 +59,17 @@ export function PanelField({ setup }: Props) {
         creating={setup.makeChannel.isPending}
         createError={setup.makeChannel.error}
         missingPermissionsHint='El bot no tiene permisos. Dale "Gestionar canales" en Discord, o vuelve a invitarlo desde el panel.'
-        action={{
-          label: published ? 'Volver a publicar' : 'Publicar panel',
-          onClick: () => publish.mutate(),
-          disabled: !setup.channelId || publish.isPending,
-        }}
+        action={
+          publishButton
+            ? {
+                label: published ? 'Volver a publicar' : 'Publicar panel',
+                onClick: () => publish.mutate(),
+                disabled: !setup.channelId || publish.isPending,
+              }
+            : undefined
+        }
       />
-      {publish.isSuccess && <small className="saved">Panel publicado</small>}
+      {publishButton && publish.isSuccess && <small className="saved">Panel publicado</small>}
       {publish.isError && (
         <small className="error">
           {publish.error.message === MISSING_PERMISSIONS

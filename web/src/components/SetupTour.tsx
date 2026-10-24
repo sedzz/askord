@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TicketSetup } from '../lib/useTicketSetup'
 import { CategoryField, PanelField, RoleField } from './TicketFields'
+import { CategoryPreview, PanelPreview, WelcomePreview } from './TicketPreviews'
 import { Button } from './ui/Button'
 import { Dialog } from './ui/Dialog'
 import { Stepper } from './ui/Stepper'
@@ -26,7 +27,6 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
 
   const hasRole = setup.staffRoleId !== ''
   const hasCategory = setup.categoryId !== ''
-  const panelPublished = Boolean(config.settings?.panelChannelId)
 
   const canContinue =
     step === ROLE
@@ -34,13 +34,18 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
       : step === CATEGORY
         ? hasRole && hasCategory && !save.isPending
         : step === PANEL
-          ? panelPublished
+          ? setup.channelId !== '' && !setup.publish.isPending
           : true
 
   function next() {
     if (step === CATEGORY) {
       // La configuración se guarda al salir de este paso.
       save.mutate(undefined, { onSuccess: () => setStep(PANEL) })
+      return
+    }
+    if (step === PANEL) {
+      // Finalizar publica el panel en el canal elegido y pasa al resumen.
+      setup.publish.mutate(undefined, { onSuccess: () => setStep(DONE) })
       return
     }
     setStep(step + 1)
@@ -50,7 +55,9 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
     step === WELCOME
       ? 'Empezar'
       : step === PANEL
-        ? 'Finalizar'
+        ? setup.publish.isPending
+          ? 'Publicando…'
+          : 'Finalizar'
         : save.isPending
           ? 'Guardando…'
           : 'Siguiente'
@@ -60,6 +67,8 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
   const channelName = config.textChannels.find(
     (c) => c.id === config.settings?.panelChannelId,
   )?.name
+  // En la vista previa se usa el canal que se está eligiendo, aún sin publicar.
+  const selectedChannelName = config.textChannels.find((c) => c.id === setup.channelId)?.name
 
   return (
     // No se puede cerrar hasta terminar: la configuración es obligatoria.
@@ -67,6 +76,7 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
       open={open}
       onOpenChange={onOpenChange}
       title="Configura los tickets"
+      size="lg"
       dismissible={false}
     >
       <Stepper current={step} total={TOTAL_STEPS} />
@@ -82,9 +92,24 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
             </p>
           </>
         )}
-        {step === ROLE && <RoleField setup={setup} />}
-        {step === CATEGORY && <CategoryField setup={setup} />}
-        {step === PANEL && <PanelField setup={setup} />}
+        {step === ROLE && (
+          <>
+            <RoleField setup={setup} />
+            <WelcomePreview roleName={roleName} />
+          </>
+        )}
+        {step === CATEGORY && (
+          <>
+            <CategoryField setup={setup} />
+            <CategoryPreview categoryName={categoryName} />
+          </>
+        )}
+        {step === PANEL && (
+          <>
+            <PanelField setup={setup} publishButton={false} />
+            <PanelPreview channelName={selectedChannelName} />
+          </>
+        )}
         {step === DONE && (
           <>
             <h3>¡Todo listo!</h3>
@@ -115,7 +140,7 @@ export function SetupTour({ setup, open, onOpenChange }: Props) {
         {step === DONE ? (
           <Button onClick={() => onOpenChange(false)}>Terminar</Button>
         ) : (
-          <Button onClick={step === PANEL ? () => setStep(DONE) : next} disabled={!canContinue}>
+          <Button onClick={next} disabled={!canContinue}>
             {nextLabel}
           </Button>
         )}

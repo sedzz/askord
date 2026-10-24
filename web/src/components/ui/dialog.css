@@ -66,3 +66,7 @@
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
 }
+
+.ui-dialog-lg {
+  width: min(600px, calc(100vw - 32px));
+}

@@ -65,15 +65,15 @@ func (b *Bot) PublishPanel(channelID, oldChannelID, oldMessageID string) (string
 		Embeds: []*discordgo.MessageEmbed{{
 			Title:       "Soporte",
 			Description: "¿Necesitas ayuda? Pulsa el botón para abrir un ticket privado con el staff.",
-			Color:       0x5865F2,
+			Color:       0xFFC5D3,
 		}},
 		Components: []discordgo.MessageComponent{
 			discordgo.ActionsRow{Components: []discordgo.MessageComponent{
 				discordgo.Button{
 					Label:    "Crear ticket",
-					Style:    discordgo.PrimaryButton,
+					Style:    discordgo.SecondaryButton,
 					CustomID: customIDOpenTicket,
-					Emoji:    &discordgo.ComponentEmoji{Name: "🎫"},
+					Emoji:    &discordgo.ComponentEmoji{Name: "📩"},
 				},
 			}},
 		},

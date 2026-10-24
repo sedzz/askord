@@ -11,6 +11,8 @@ type Props = {
   disabled?: boolean
   id?: string
   className?: string
+  // Id del elemento que da nombre al selector (en lugar de un <label for>, que lo abriría al pulsarlo).
+  labelledBy?: string
 }
 
 type Position = { left: number; width: number; maxHeight: number; top?: number; bottom?: number }
@@ -29,6 +31,7 @@ export function Select({
   disabled,
   id,
   className,
+  labelledBy,
 }: Props) {
   const autoId = useId()
   const triggerId = id ?? `${autoId}-trigger`
@@ -173,6 +176,7 @@ export function Select({
         role="combobox"
         className="ui-select-trigger"
         aria-haspopup="listbox"
+        aria-labelledby={labelledBy}
         aria-expanded={open}
         aria-controls={listId}
         aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
