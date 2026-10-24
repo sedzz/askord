@@ -4,7 +4,7 @@ import { setPendingInvite } from '../lib/pendingInvite'
 import { buttonClassName } from './ui/button-styles'
 import './ui/button.css'
 import { Dialog } from './ui/Dialog'
-import { Spinner } from './ui/Spinner'
+import { GuildRowsSkeleton } from './skeletons'
 
 type Props = {
   open: boolean
@@ -24,9 +24,7 @@ export function AddServerDialog({ open, onOpenChange }: Props) {
       description="Elige un servidor que administres. Se abrirá Discord para autorizar al bot."
     >
       {isPending ? (
-        <p className="loading">
-          <Spinner /> Cargando servidores…
-        </p>
+        <GuildRowsSkeleton />
       ) : isError ? (
         <p className="error">No se pudieron cargar los servidores.</p>
       ) : available.length === 0 ? (

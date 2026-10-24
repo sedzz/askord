@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, Outlet } from '@tanstack/react-router'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { AppShell } from '../components/AppShell'
 import { GuildSubnav } from '../components/GuildSubnav'
+import { GuildFrameSkeleton } from '../components/skeletons'
 import { SetupTour } from '../components/SetupTour'
 import { requireUser } from '../lib/auth'
 import { guildsQuery } from '../lib/guilds'
@@ -12,11 +13,13 @@ import { useTicketSetup } from '../lib/useTicketSetup'
 
 export const Route = createFileRoute('/guilds/$guildId')({
   beforeLoad: ({ context }) => requireUser(context.queryClient),
-  loader: ({ context, params }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(ticketConfigQuery(params.guildId)),
-      context.queryClient.ensureQueryData(guildsQuery),
-    ]),
+  // Precarga sin esperar: se entra al servidor al instante y el contenido enseña un
+  // esqueleto hasta que llegan los datos.
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(ticketConfigQuery(params.guildId))
+    void context.queryClient.prefetchQuery(guildsQuery)
+  },
+  pendingComponent: GuildPending,
   errorComponent: () => (
     <main className="page">
       <Link to="/">← Volver</Link>
@@ -31,7 +34,20 @@ function GuildLayout() {
   // key: al cambiar de servidor se reinicia todo (formularios y diálogos abiertos).
   return (
     <AppShell key={guildId} activeGuildId={guildId}>
-      <GuildFrame guildId={guildId} />
+      {/* La cabecera y la barra de servidores salen ya; el marco espera a sus datos. */}
+      <Suspense fallback={<GuildFrameSkeleton />}>
+        <GuildFrame guildId={guildId} />
+      </Suspense>
+    </AppShell>
+  )
+}
+
+// Mientras se descarga la pantalla del servidor por primera vez.
+function GuildPending() {
+  const { guildId } = Route.useParams()
+  return (
+    <AppShell activeGuildId={guildId}>
+      <GuildFrameSkeleton />
     </AppShell>
   )
 }

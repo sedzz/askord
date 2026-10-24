@@ -1,29 +1,19 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import '../components/transcripts.css'
 import { DiscordFrame, DiscordMessage } from '../components/discord/Discord'
+import { TranscriptDetailSkeleton } from '../components/skeletons'
 import { buttonClassName } from '../components/ui/button-styles'
 import { discordAvatarUrl, formatDateTime, ticketNumber } from '../lib/format'
 import { ticketExportUrl, transcriptQuery, type ExportFormat } from '../lib/transcripts'
 
 export const Route = createFileRoute('/guilds/$guildId/transcripts/$ticketId')({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(transcriptQuery(params.guildId, params.ticketId)),
-  errorComponent: TranscriptError,
+  // Precarga sin esperar: se entra al instante y la página enseña un esqueleto.
+  loader: ({ context, params }) => {
+    void context.queryClient.prefetchQuery(transcriptQuery(params.guildId, params.ticketId))
+  },
   component: TranscriptDetail,
 })
-
-function TranscriptError() {
-  const { guildId } = Route.useParams()
-  return (
-    <div>
-      <Link to="/guilds/$guildId/transcripts" params={{ guildId }}>
-        ← Transcripciones
-      </Link>
-      <p className="error">No se pudo cargar esta transcripción.</p>
-    </div>
-  )
-}
 
 const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: 'txt', label: 'TXT' },
@@ -33,7 +23,19 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
 
 function TranscriptDetail() {
   const { guildId, ticketId } = Route.useParams()
-  const { data: t } = useSuspenseQuery(transcriptQuery(guildId, ticketId))
+  const { data: t, isPending, isError } = useQuery(transcriptQuery(guildId, ticketId))
+
+  if (isPending) return <TranscriptDetailSkeleton />
+  if (isError) {
+    return (
+      <div>
+        <Link to="/guilds/$guildId/transcripts" params={{ guildId }}>
+          ← Transcripciones
+        </Link>
+        <p className="error">No se pudo cargar esta transcripción.</p>
+      </div>
+    )
+  }
   const number = ticketNumber(t.number)
 
   return (

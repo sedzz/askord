@@ -5,7 +5,7 @@ import '../components/transcripts.css'
 import { Button } from '../components/ui/Button'
 import { buttonClassName } from '../components/ui/button-styles'
 import { Input } from '../components/ui/Input'
-import { Spinner } from '../components/ui/Spinner'
+import { TranscriptRowsSkeleton } from '../components/skeletons'
 import { formatDate, ticketNumber } from '../lib/format'
 import {
   exportUrl,
@@ -125,9 +125,7 @@ function Transcripts() {
       </div>
 
       {isPending ? (
-        <p className="loading">
-          <Spinner /> Cargando transcripciones…
-        </p>
+        <TranscriptRowsSkeleton />
       ) : isError ? (
         <p className="error">No se pudieron cargar las transcripciones.</p>
       ) : items.length === 0 ? (

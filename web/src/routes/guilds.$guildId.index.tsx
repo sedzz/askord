@@ -4,7 +4,7 @@ import { useState } from 'react'
 import '../components/dashboard.css'
 import { BarChart } from '../components/ui/BarChart'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
-import { Spinner } from '../components/ui/Spinner'
+import { DashboardSkeleton } from '../components/skeletons'
 import { formatDate, formatDay, formatDuration, formatNumber } from '../lib/format'
 import { overviewQuery, type GuildOverview, type Range } from '../lib/overview'
 
@@ -27,13 +27,7 @@ function Dashboard() {
     placeholderData: keepPreviousData,
   })
 
-  if (isPending) {
-    return (
-      <p className="loading">
-        <Spinner /> Cargando el dashboard…
-      </p>
-    )
-  }
+  if (isPending) return <DashboardSkeleton />
   if (isError) return <p className="error">No se pudo cargar el dashboard.</p>
 
   const { guild, tickets, series } = data

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { AppShell } from '../components/AppShell'
 import { Button } from '../components/ui/Button'
-import { Spinner } from '../components/ui/Spinner'
+import { GuildRowsSkeleton } from '../components/skeletons'
 import { buttonClassName } from '../components/ui/button-styles'
 import { requireUser } from '../lib/auth'
 import { guildIconUrl, guildsQuery, type Guild } from '../lib/guilds'
@@ -14,7 +14,8 @@ export const Route = createFileRoute('/')({
 
     // Con algún servidor configurado, el inicio es el panel de ese servidor.
     // Esta lista solo se ve mientras no hay ninguno.
-    const guilds = await context.queryClient.fetchQuery(guildsQuery).catch(() => [])
+    const guilds = await context.queryClient.ensureQueryData(guildsQuery).catch(() => [])
+    void context.queryClient.prefetchQuery(guildsQuery) // refresco por detrás, sin esperar
     const first = guilds.find((g) => g.botInstalled)
     if (first) throw redirect({ to: '/guilds/$guildId', params: { guildId: first.id } })
   },
@@ -32,13 +33,7 @@ function Dashboard() {
 function Guilds() {
   const { data: guilds, isPending, isError, isFetching, refetch } = useQuery(guildsQuery)
 
-  if (isPending) {
-    return (
-      <p className="loading">
-        <Spinner /> Cargando servidores…
-      </p>
-    )
-  }
+  if (isPending) return <GuildRowsSkeleton />
   if (isError) return <p className="error">No se pudieron cargar los servidores.</p>
 
   return (

@@ -1,0 +1,49 @@
+.ui-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(255 255 255 / 5%) 25%,
+    rgb(255 255 255 / 10%) 50%,
+    rgb(255 255 255 / 5%) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 8px;
+  animation: ui-shimmer 1.4s linear infinite;
+}
+
+@keyframes ui-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Quien prefiere menos movimiento ve el bloque fijo, sin brillo. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton {
+    background: rgb(255 255 255 / 7%);
+    animation: none;
+  }
+}
+
+/* Utilidades de colocación para las pantallas de carga. */
+.skeleton-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.skeleton-gap {
+  margin-top: 16px;
+}
+
+.skeleton-grow {
+  flex: 1;
+}
+
+.skeleton-message {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
