@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/sedzz/askord/internal/ai"
 	"github.com/sedzz/askord/internal/auth"
 	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/config"
@@ -20,10 +21,18 @@ type Handler struct {
 	cfg   config.Config
 	store *store.Store
 	bot   *bot.Bot
+	// sealer cifra las API keys de los LLM; nil si no hay AI_ENCRYPTION_KEY (IA desactivada).
+	sealer *ai.Sealer
+	llm    *ai.Client
 }
 
 func New(cfg config.Config, s *store.Store, b *bot.Bot) *Handler {
-	return &Handler{cfg: cfg, store: s, bot: b}
+	h := &Handler{cfg: cfg, store: s, bot: b, llm: ai.New(cfg.AIAllowPrivateURLs)}
+	if len(cfg.AIEncryptionKey) > 0 {
+		// Config.Load ya comprobó que la clave mide 32 bytes.
+		h.sealer, _ = ai.NewSealer(cfg.AIEncryptionKey)
+	}
+	return h
 }
 
 type guildResponse struct {

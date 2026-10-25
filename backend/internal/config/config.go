@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 )
@@ -14,6 +15,10 @@ type Config struct {
 	DiscordRedirectURL  string
 	FrontendURL         string
 	CookieSecure        bool
+	// Clave de 32 bytes con la que se cifran las API keys de los LLM. Vacía: la IA queda desactivada.
+	AIEncryptionKey []byte
+	// Permite que la URL del LLM apunte a direcciones privadas o locales (solo para desarrollo).
+	AIAllowPrivateURLs bool
 }
 
 func Load() (Config, error) {
@@ -27,6 +32,15 @@ func Load() (Config, error) {
 		FrontendURL:         get("FRONTEND_URL", "http://localhost:5173"),
 		CookieSecure:        os.Getenv("COOKIE_SECURE") == "true",
 	}
+
+	if v := os.Getenv("AI_ENCRYPTION_KEY"); v != "" {
+		key, err := base64.StdEncoding.DecodeString(v)
+		if err != nil || len(key) != 32 {
+			return Config{}, fmt.Errorf("AI_ENCRYPTION_KEY debe ser una clave de 32 bytes en base64 (openssl rand -base64 32)")
+		}
+		c.AIEncryptionKey = key
+	}
+	c.AIAllowPrivateURLs = os.Getenv("AI_ALLOW_PRIVATE_URLS") == "true"
 
 	for name, v := range map[string]string{
 		"DATABASE_URL":          c.DatabaseURL,

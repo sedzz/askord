@@ -28,7 +28,10 @@ type env struct {
 
 // newEnv monta la API real (auth.Require + handlers) sobre una base de datos limpia.
 // Usuario "ana" administra el servidor g1; "luis", el g2. El bot está instalado en ambos.
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, config.Config{}) }
+
+// newEnvWith es newEnv con una configuración concreta (por ejemplo, con clave de cifrado).
+func newEnvWith(t *testing.T, cfg config.Config) *env {
 	t.Helper()
 	st := storetest.New(t)
 	ctx := context.Background()
@@ -41,13 +44,16 @@ func newEnv(t *testing.T) *env {
 		must(t, st.CreateSession(ctx, sum[:], u.user, time.Now().Add(24*time.Hour)))
 	}
 
-	cfg := config.Config{}
 	authH := auth.New(cfg, st)
 	dashH := New(cfg, st, nil) // estos endpoints no usan el bot
 	r := chi.NewRouter()
 	r.Route("/api", func(r chi.Router) {
 		r.Use(authH.Require)
 		r.Delete("/guilds/{guildID}/transcripts/{ticketID}", dashH.DeleteTranscript)
+		r.Get("/guilds/{guildID}/ai", dashH.GetAI)
+		r.Put("/guilds/{guildID}/ai", dashH.PutAI)
+		r.Delete("/guilds/{guildID}/ai", dashH.DeleteAI)
+		r.Post("/guilds/{guildID}/ai/test", dashH.TestAI)
 	})
 	return &env{t: t, st: st, router: r}
 }

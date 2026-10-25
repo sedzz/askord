@@ -10,7 +10,7 @@ import (
 )
 
 // newTestStore se conecta a la base de datos de TEST_DATABASE_URL (con las migraciones ya
-// aplicadas) y la deja vacía de tickets. Sin la variable, el test se omite.
+// aplicadas o por aplicar) y la deja vacía de tickets. Sin la variable, el test se omite.
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
@@ -22,6 +22,9 @@ func newTestStore(t *testing.T) *Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(st.Close)
+	if err := st.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := st.pool.Exec(context.Background(), `DELETE FROM tickets`); err != nil {
 		t.Fatal(err)
 	}
@@ -187,5 +190,24 @@ func TestTranscriptExpired(t *testing.T) {
 	}
 	if (Ticket{}).TranscriptExpired(now) {
 		t.Error("abierto no debía estar caducado")
+	}
+}
+
+func TestDeleteGuildDataRemovesAISettings(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	for _, g := range []string{"g1", "g2"} {
+		if err := st.SaveAISettings(ctx, g, AISettings{BaseURL: "https://x", Model: "m", KeyEnc: []byte("cifrada")}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.DeleteGuildData(ctx, "g1"); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := st.GetAISettings(ctx, "g1"); a != nil {
+		t.Error("al quitar el bot debía borrarse la API key del servidor")
+	}
+	if a, _ := st.GetAISettings(ctx, "g2"); a == nil {
+		t.Error("se borró la conexión de otro servidor")
 	}
 }
