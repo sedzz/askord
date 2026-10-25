@@ -5,6 +5,8 @@
 
 A ticket bot for Discord with a web dashboard to configure it.
 
+![Askord dashboard](assets/dashboard.png)
+
 ## Features
 
 - **Ticket panel** in Discord with one button per ticket type.
