@@ -1,3 +1,6 @@
 .env
 *.exe
 tmp/
+
+# Notas de diseño internas
+docs/
