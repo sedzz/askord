@@ -31,7 +31,9 @@ type Client struct {
 }
 
 const (
-	requestTimeout  = 20 * time.Second
+	// Tiempo máximo de la prueba de conexión y de una respuesta del modelo.
+	testTimeout     = 20 * time.Second
+	chatTimeout     = 60 * time.Second
 	maxResponseSize = 1 << 20
 )
 
@@ -58,7 +60,7 @@ func New(allowPrivate bool) *Client {
 	return &Client{
 		allowPrivate: allowPrivate,
 		http: &http.Client{
-			Timeout: requestTimeout,
+			// Sin tiempo máximo global: cada llamada pone el suyo con su contexto.
 			Transport: &http.Transport{
 				Proxy:               nil, // un proxy del entorno saltaría la comprobación de la IP
 				DialContext:         dialer.DialContext,
@@ -93,67 +95,110 @@ func (c *Client) ValidateBaseURL(raw string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
-// Test comprueba la conexión pidiéndole al modelo una respuesta mínima. El error que devuelve
-// está pensado para enseñárselo al admin: nunca incluye la API key.
-func (c *Client) Test(ctx context.Context, cfg Config) error {
+// ErrorKind clasifica por qué falló una llamada al proveedor, para que quien la hizo sepa si
+// es culpa de la clave, del saldo, de la red…
+type ErrorKind int
+
+const (
+	KindOther       ErrorKind = iota
+	KindAuth                  // la API key no es válida o no tiene permisos
+	KindNotFound              // endpoint o modelo inexistente
+	KindRateLimit             // límite de peticiones o sin saldo
+	KindConnection            // no se pudo conectar (incluye direcciones no permitidas)
+	KindTimeout               // el proveedor tardó demasiado
+	KindBadResponse           // respondió, pero no con lo esperado
+)
+
+// Error es un fallo de una llamada al proveedor. Su texto está pensado para enseñárselo al
+// admin y nunca incluye la API key.
+type Error struct {
+	Kind ErrorKind
+	msg  string
+}
+
+func (e *Error) Error() string { return e.msg }
+
+func fail(kind ErrorKind, msg string) *Error { return &Error{Kind: kind, msg: msg} }
+
+// post envía un cuerpo JSON a {base}/chat/completions y devuelve la respuesta si fue 2xx.
+func (c *Client) post(ctx context.Context, cfg Config, body any) ([]byte, error) {
 	base, err := c.ValidateBaseURL(cfg.BaseURL)
 	if err != nil {
-		return err
+		return nil, fail(KindOther, err.Error())
 	}
-	body, _ := json.Marshal(map[string]any{
-		"model":      cfg.Model,
-		"max_tokens": 5,
-		"messages":   []map[string]string{{"role": "user", "content": "Responde solo: ok"}},
-	})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(body))
+	payload, err := json.Marshal(body)
 	if err != nil {
-		return errors.New("la URL no es válida")
+		return nil, fail(KindOther, "no se pudo preparar la petición")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/chat/completions", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fail(KindOther, "la URL no es válida")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return connectionError(err)
+		return nil, connectionError(err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
-		return errors.New("no se pudo leer la respuesta del servidor")
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fail(KindTimeout, "el servidor tardó demasiado en responder")
+		}
+		return nil, fail(KindConnection, "no se pudo leer la respuesta del servidor")
 	}
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return statusError(resp.StatusCode, data, cfg.APIKey)
+		return nil, statusError(resp.StatusCode, data, cfg.APIKey)
+	}
+	return data, nil
+}
+
+// Test comprueba la conexión pidiéndole al modelo una respuesta mínima. El error que devuelve
+// está pensado para enseñárselo al admin: nunca incluye la API key.
+func (c *Client) Test(ctx context.Context, cfg Config) error {
+	ctx, cancel := context.WithTimeout(ctx, testTimeout)
+	defer cancel()
+	data, err := c.post(ctx, cfg, map[string]any{
+		"model":      cfg.Model,
+		"max_tokens": 5,
+		"messages":   []map[string]string{{"role": "user", "content": "Responde solo: ok"}},
+	})
+	if err != nil {
+		return err
 	}
 	var out struct {
 		Choices []json.RawMessage `json:"choices"`
 	}
 	if json.Unmarshal(data, &out) != nil || len(out.Choices) == 0 {
-		return errors.New("el servidor respondió, pero no parece una API compatible con OpenAI")
+		return errNotOpenAI
 	}
 	return nil
 }
 
+var errNotOpenAI = fail(KindBadResponse, "el servidor respondió, pero no parece una API compatible con OpenAI")
+
 func connectionError(err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return errors.New("el servidor tardó demasiado en responder")
+		return fail(KindTimeout, "el servidor tardó demasiado en responder")
 	case strings.Contains(err.Error(), "la dirección no está permitida"):
-		return errors.New("la URL apunta a una dirección local o privada, que no está permitida")
+		return fail(KindConnection, "la URL apunta a una dirección local o privada, que no está permitida")
 	}
-	return errors.New("no se pudo conectar con el servidor")
+	return fail(KindConnection, "no se pudo conectar con el servidor")
 }
 
 func statusError(code int, data []byte, apiKey string) error {
 	switch code {
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return errors.New("la API key no es válida o no tiene permisos")
+		return fail(KindAuth, "la API key no es válida o no tiene permisos")
 	case http.StatusNotFound:
-		return errors.New("no se encontró el endpoint o el modelo; revisa la URL y el nombre del modelo")
+		return fail(KindNotFound, "no se encontró el endpoint o el modelo; revisa la URL y el nombre del modelo")
 	case http.StatusTooManyRequests:
-		return errors.New("el proveedor limitó las peticiones (o la cuenta no tiene saldo)")
+		return fail(KindRateLimit, "el proveedor limitó las peticiones (o la cuenta no tiene saldo)")
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
-		return errors.New("el servidor redirige a otra dirección; usa la URL final")
+		return fail(KindOther, "el servidor redirige a otra dirección; usa la URL final")
 	}
 	// Muchos proveedores explican el motivo en {"error":{"message":"…"}}.
 	var e struct {
@@ -169,7 +214,7 @@ func statusError(code int, data []byte, apiKey string) error {
 		if r := []rune(msg); len(r) > 200 {
 			msg = string(r[:200]) + "…"
 		}
-		return fmt.Errorf("el proveedor respondió con un error (%d): %s", code, msg)
+		return fail(KindOther, fmt.Sprintf("el proveedor respondió con un error (%d): %s", code, msg))
 	}
-	return fmt.Errorf("el proveedor respondió con un error (%d)", code)
+	return fail(KindOther, fmt.Sprintf("el proveedor respondió con un error (%d)", code))
 }
