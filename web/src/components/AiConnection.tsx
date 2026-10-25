@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { aiQuery, deleteAi, saveAi, testAi, type AiConnection as Connection } from '../lib/ai'
 import { toast } from '../lib/toast'
+import { AiAlerts } from './AiAlerts'
 import { AiBehavior } from './AiBehavior'
 import { Button } from './ui/Button'
 import { Dialog } from './ui/Dialog'
@@ -48,6 +49,7 @@ export function AiConnection({ guildId, connection, editOpen, onEditOpenChange }
         model: '',
         enabled: false,
         guidelines: '',
+        alertsChannelId: '',
         hasKey: false,
       })
       setRemoveOpen(false)
@@ -62,6 +64,8 @@ export function AiConnection({ guildId, connection, editOpen, onEditOpenChange }
   return (
     <>
       <AiBehavior guildId={guildId} connection={connection} />
+
+      <AiAlerts guildId={guildId} connection={connection} />
 
       <section className="danger-zone">
         <h2>Eliminar conexión</h2>

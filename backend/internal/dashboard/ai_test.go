@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/config"
+	"github.com/sedzz/askord/internal/store"
 )
 
 // aiEnv monta el dashboard con clave de cifrado y permiso para URLs locales (el LLM falso
@@ -64,6 +67,8 @@ type aiJSON struct {
 	Enabled    bool   `json:"enabled"`
 	HasKey     bool   `json:"hasKey"`
 	Guidelines string `json:"guidelines"`
+
+	AlertsChannelID string `json:"alertsChannelId"`
 }
 
 func decodeAI(t *testing.T, body string) aiJSON {
@@ -371,5 +376,131 @@ func TestCleanTypeAI(t *testing.T) {
 	}
 	if _, _, problem := cleanTypeAI(strings.Repeat("a", 2000), strings.Repeat("ñ", 1000)); problem != "" {
 		t.Errorf("justo en el límite: %q", problem)
+	}
+}
+
+func TestAIAlertsChannel(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+
+	code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": "staff"})
+	if got := decodeAI(t, body); code != http.StatusOK || got.AlertsChannelID != "staff" {
+		t.Fatalf("PUT = %d %s", code, body)
+	}
+	if _, read := e.call(http.MethodGet, "ana", "/guilds/g1/ai", nil); decodeAI(t, read).AlertsChannelID != "staff" {
+		t.Errorf("GET no devuelve el canal: %s", read)
+	}
+
+	// Editar la conexión después no lo pierde.
+	put := map[string]any{"baseUrl": "https://openrouter.ai/api/v1", "model": "otro"}
+	if _, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai", put); decodeAI(t, body).AlertsChannelID != "staff" {
+		t.Errorf("editar la conexión perdió el canal: %s", body)
+	}
+
+	// Un canal que no es de texto de este servidor se rechaza y no cambia nada.
+	if code, _ := e.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": "de-otro-servidor"}); code != http.StatusBadRequest {
+		t.Errorf("canal ajeno = %d, quería 400", code)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s.AlertsChannelID != "staff" {
+		t.Errorf("un canal inválido cambió el guardado: %q", s.AlertsChannelID)
+	}
+
+	// Con el canal vacío se quita.
+	_, body = e.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": ""})
+	if got := decodeAI(t, body); got.AlertsChannelID != "" {
+		t.Errorf("no se quitó: %+v", got)
+	}
+
+	// Si Discord falla al comprobar los canales, no se guarda nada a ciegas.
+	e.discord.listErr = errors.New("discord caído")
+	if code, _ := e.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": "staff"}); code != http.StatusBadGateway {
+		t.Errorf("Discord caído = %d, quería 502", code)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s.AlertsChannelID != "" {
+		t.Error("se guardó un canal sin poder comprobarlo")
+	}
+}
+
+func TestAIAlertsChannelNeedsAConnection(t *testing.T) {
+	e := aiEnv(t)
+	if code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": "staff"}); code != http.StatusBadRequest || !strings.Contains(body, "conexión") {
+		t.Errorf("PUT sin conexión = %d %s", code, body)
+	}
+	if code, _ := e.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil); code != http.StatusBadRequest {
+		t.Errorf("crear sin conexión = %d, quería 400", code)
+	}
+	// Sin cifrado configurado, ni se intenta.
+	off := newEnv(t)
+	if code, _ := off.call(http.MethodPut, "ana", "/guilds/g1/ai/alerts", map[string]any{"channelId": "staff"}); code != http.StatusServiceUnavailable {
+		t.Errorf("sin cifrado = %d, quería 503", code)
+	}
+	if code, _ := off.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil); code != http.StatusServiceUnavailable {
+		t.Errorf("crear sin cifrado = %d, quería 503", code)
+	}
+}
+
+func TestCreateAIAlertsChannel(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+
+	// Hace falta el rol de staff: el canal es solo para él.
+	if code, body := e.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil); code != http.StatusConflict || !strings.Contains(body, "rol de staff") {
+		t.Fatalf("sin rol de staff = %d %s", code, body)
+	}
+	if len(e.discord.createdWith) != 0 {
+		t.Error("se creó un canal sin saber quién debe verlo")
+	}
+
+	if err := e.st.SaveTicketSettings(context.Background(), "g1", store.TicketSettings{CategoryID: "cat", StaffRoleID: "rol-staff"}); err != nil {
+		t.Fatal(err)
+	}
+	code, body := e.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil)
+	if code != http.StatusCreated || !strings.Contains(body, `"id":"nuevo"`) {
+		t.Fatalf("crear = %d %s", code, body)
+	}
+	if got := strings.Join(e.discord.createdWith, "|"); got != "g1|avisos-ia|rol-staff" {
+		t.Errorf("canal creado con %q, quería el servidor, el nombre y el rol de staff", got)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s.AlertsChannelID != "nuevo" {
+		t.Errorf("el canal creado no quedó guardado: %q", s.AlertsChannelID)
+	}
+}
+
+func TestCreateAIAlertsChannelFailures(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+	_ = e.st.SaveTicketSettings(context.Background(), "g1", store.TicketSettings{CategoryID: "cat", StaffRoleID: "rol-staff"})
+
+	e.discord.createErr = bot.ErrMissingPermissions
+	if code, _ := e.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil); code != http.StatusForbidden {
+		t.Errorf("sin permisos = %d, quería 403", code)
+	}
+	e.discord.createErr = errors.New("discord caído")
+	if code, _ := e.call(http.MethodPost, "ana", "/guilds/g1/ai/alerts/channel", nil); code != http.StatusBadGateway {
+		t.Errorf("Discord caído = %d, quería 502", code)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s.AlertsChannelID != "" {
+		t.Errorf("un fallo dejó un canal guardado: %q", s.AlertsChannelID)
+	}
+}
+
+func TestAIAlertsAccessControl(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+	body := map[string]any{"channelId": "staff"}
+	for _, c := range []struct {
+		name, user, method, path string
+		want                     int
+	}{
+		{"sin sesión", "", http.MethodPut, "/guilds/g1/ai/alerts", http.StatusUnauthorized},
+		{"otro servidor", "luis", http.MethodPut, "/guilds/g1/ai/alerts", http.StatusNotFound},
+		{"crear en otro servidor", "luis", http.MethodPost, "/guilds/g1/ai/alerts/channel", http.StatusNotFound},
+	} {
+		if code, _ := e.call(c.method, c.user, c.path, body); code != c.want {
+			t.Errorf("%s: %d, quería %d", c.name, code, c.want)
+		}
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s.AlertsChannelID != "" {
+		t.Errorf("una petición rechazada cambió el canal: %q", s.AlertsChannelID)
 	}
 }

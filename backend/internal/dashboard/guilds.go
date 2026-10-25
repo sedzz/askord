@@ -24,10 +24,21 @@ type Handler struct {
 	// sealer cifra las API keys de los LLM; nil si no hay AI_ENCRYPTION_KEY (IA desactivada).
 	sealer *ai.Sealer
 	llm    *ai.Client
+	// discord son las consultas a Discord de los avisos del asistente; en los tests, un falso.
+	discord discordAPI
+}
+
+// discordAPI es lo que el dashboard le pide a Discord para los avisos del asistente de IA.
+type discordAPI interface {
+	TextChannels(guildID string) ([]bot.Option, error)
+	CreateStaffChannel(guildID, name, staffRoleID string) (bot.Option, error)
 }
 
 func New(cfg config.Config, s *store.Store, b *bot.Bot) *Handler {
 	h := &Handler{cfg: cfg, store: s, bot: b, llm: ai.New(cfg.AIAllowPrivateURLs)}
+	if b != nil {
+		h.discord = b
+	}
 	if len(cfg.AIEncryptionKey) > 0 {
 		// Config.Load ya comprobó que la clave mide 32 bytes.
 		h.sealer, _ = ai.NewSealer(cfg.AIEncryptionKey)

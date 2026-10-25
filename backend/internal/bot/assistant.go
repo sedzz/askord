@@ -28,7 +28,7 @@ const (
 	discordMessageMax = 2000
 	typingEvery       = 8 * time.Second
 	assistantTimeout  = 90 * time.Second
-	maxReasonChars    = 300
+	maxReasonChars    = 1000 // el motivo lleva el resumen del caso para el staff
 )
 
 // assistant es el asistente de IA de los tickets: lo que necesita el bot para responder.
@@ -303,9 +303,9 @@ func (b *Bot) respond(channelID string, initial bool) {
 		return
 	}
 
-	if resp.Content != "" {
-		b.say(channelID, resp.Content)
-	}
+	// Al pasar el ticket a una persona, el usuario solo ve el aviso automático: lo que el modelo
+	// escriba además (a menudo, un resumen del caso pensado para el staff) se descarta, porque el
+	// resumen ya va en el motivo.
 	for _, call := range resp.ToolCalls {
 		if call.Name != ai.EscalateToolName {
 			continue
@@ -314,8 +314,11 @@ func (b *Bot) respond(channelID string, initial bool) {
 		if reason == "" {
 			reason = "El asistente pidió pasar el ticket a una persona."
 		}
-		b.escalate(ctx, ticket, "🙋 Este ticket necesita a una persona del equipo.", reason)
+		b.escalate(ctx, ticket, "🙋 Te paso con una persona del equipo; te atenderá en cuanto pueda.", reason)
 		return
+	}
+	if resp.Content != "" {
+		b.say(channelID, resp.Content)
 	}
 	slog.Info("el asistente respondió", "guild", ticket.GuildID, "channel", channelID,
 		"prompt_tokens", resp.PromptTokens, "completion_tokens", resp.CompletionTokens)
@@ -441,9 +444,13 @@ func splitMessage(text string, max int) []string {
 	return parts
 }
 
-// escalate pasa el ticket a una persona: el asistente se calla y el staff recibe el aviso con el
-// motivo. Solo avisa una vez aunque se pida varias a la vez.
-func (b *Bot) escalate(ctx context.Context, ticket *store.Ticket, headline, reason string) {
+// escalate pasa el ticket a una persona: el asistente se calla y se avisa al staff. Solo avisa una
+// vez aunque se pida varias a la vez.
+//
+// Lo que ve el usuario en su ticket (userNote) es siempre un mensaje neutro. El aviso con el
+// motivo, que puede llevar datos del caso o fallos técnicos, va al canal de avisos del staff. Sin
+// ese canal (o si falla el envío), se menciona al rol en el ticket, pero sin el motivo.
+func (b *Bot) escalate(ctx context.Context, ticket *store.Ticket, userNote, reason string) {
 	changed, err := b.store.SetAIState(ctx, ticket.ChannelID, store.AIStateEscalated)
 	if err != nil {
 		slog.Error("escalar el ticket", "channel", ticket.ChannelID, "err", err)
@@ -453,22 +460,65 @@ func (b *Bot) escalate(ctx context.Context, ticket *store.Ticket, headline, reas
 		return
 	}
 
-	var mention string
-	allowed := noMentions()
+	staffRole := ""
 	if settings, err := b.store.GetTicketSettings(ctx, ticket.GuildID); err == nil && settings != nil {
-		if role := b.staffRoleFor(ctx, ticket, settings); role != "" {
-			mention = "<@&" + role + "> "
-			allowed.Roles = []string{role}
-		}
+		staffRole = b.staffRoleFor(ctx, ticket, settings)
 	}
-	content := fmt.Sprintf("%s%s\n**Motivo:** %s", mention, headline, truncate(strings.TrimSpace(reason), maxReasonChars))
+
+	alerted := false
+	if settings, err := b.store.GetAISettings(ctx, ticket.GuildID); err != nil {
+		slog.Error("leer configuracion de ia", "guild", ticket.GuildID, "err", err)
+	} else if settings != nil && settings.AlertsChannelID != "" {
+		alerted = b.alertStaff(ctx, settings.AlertsChannelID, ticket, staffRole, reason)
+	}
+
+	// En el ticket, solo lo neutro; con mención al rol si el staff no se ha enterado por otro lado.
+	content := userNote
+	allowed := noMentions()
+	if !alerted && staffRole != "" {
+		content = "<@&" + staffRole + "> " + userNote
+		allowed.Roles = []string{staffRole}
+	}
 	if _, err := b.session.ChannelMessageSendComplex(ticket.ChannelID, &discordgo.MessageSend{
 		Content:         content,
 		AllowedMentions: allowed,
 	}); err != nil {
-		slog.Error("avisar al staff", "channel", ticket.ChannelID, "err", err)
+		slog.Error("avisar en el ticket", "channel", ticket.ChannelID, "err", err)
 	}
-	slog.Info("ticket pasado a una persona", "guild", ticket.GuildID, "channel", ticket.ChannelID, "reason", reason)
+	slog.Info("ticket pasado a una persona", "guild", ticket.GuildID, "channel", ticket.ChannelID,
+		"reason", reason, "alert_channel", alerted)
+}
+
+// alertStaff publica en el canal de avisos el ticket que necesita a una persona, con su motivo.
+// Devuelve false si no se pudo enviar.
+func (b *Bot) alertStaff(ctx context.Context, alertsChannelID string, ticket *store.Ticket, staffRole, reason string) bool {
+	typeName := ""
+	if ticket.TypeID != 0 {
+		if t, err := b.store.GetTicketType(ctx, ticket.GuildID, ticket.TypeID); err == nil {
+			typeName = t.Name
+		}
+	}
+
+	var msg strings.Builder
+	allowed := noMentions()
+	if staffRole != "" {
+		msg.WriteString("<@&" + staffRole + "> ")
+		allowed.Roles = []string{staffRole}
+	}
+	fmt.Fprintf(&msg, "🙋 **Ticket #%04d** necesita a una persona: <#%s>\n**Abierto por:** <@%s>", ticket.Number, ticket.ChannelID, ticket.OpenerID)
+	if typeName != "" {
+		fmt.Fprintf(&msg, " · **Tipo:** %s", typeName)
+	}
+	fmt.Fprintf(&msg, "\n**Motivo:** %s", truncate(strings.TrimSpace(reason), maxReasonChars))
+
+	if _, err := b.session.ChannelMessageSendComplex(alertsChannelID, &discordgo.MessageSend{
+		Content:         msg.String(),
+		AllowedMentions: allowed,
+	}); err != nil {
+		slog.Error("avisar en el canal del staff", "channel", alertsChannelID, "err", err)
+		return false
+	}
+	return true
 }
 
 // failAndEscalate: el proveedor de IA falló. El usuario no se queda esperando una respuesta que no

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sedzz/askord/internal/auth"
+	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/config"
 	"github.com/sedzz/askord/internal/store"
 	"github.com/sedzz/askord/internal/store/storetest"
@@ -21,9 +22,29 @@ import (
 const sessionCookie = "askord_session"
 
 type env struct {
-	t      *testing.T
-	st     *store.Store
-	router http.Handler
+	t       *testing.T
+	st      *store.Store
+	router  http.Handler
+	discord *fakeChannels
+}
+
+// fakeChannels hace de Discord para los avisos del asistente: canales de texto, creación de un
+// canal privado y errores a pedido.
+type fakeChannels struct {
+	channels    []bot.Option
+	listErr     error
+	createErr   error
+	createdWith []string // guild, nombre y rol del último canal creado
+}
+
+func (f *fakeChannels) TextChannels(string) ([]bot.Option, error) { return f.channels, f.listErr }
+
+func (f *fakeChannels) CreateStaffChannel(guildID, name, staffRoleID string) (bot.Option, error) {
+	if f.createErr != nil {
+		return bot.Option{}, f.createErr
+	}
+	f.createdWith = []string{guildID, name, staffRoleID}
+	return bot.Option{ID: "nuevo", Name: name}, nil
 }
 
 // newEnv monta la API real (auth.Require + handlers) sobre una base de datos limpia.
@@ -45,7 +66,9 @@ func newEnvWith(t *testing.T, cfg config.Config) *env {
 	}
 
 	authH := auth.New(cfg, st)
-	dashH := New(cfg, st, nil) // estos endpoints no usan el bot
+	dashH := New(cfg, st, nil) // el resto de endpoints de estas pruebas no usan el bot
+	fake := &fakeChannels{channels: []bot.Option{{ID: "general", Name: "general"}, {ID: "staff", Name: "staff"}}}
+	dashH.discord = fake
 	r := chi.NewRouter()
 	r.Route("/api", func(r chi.Router) {
 		r.Use(authH.Require)
@@ -54,9 +77,11 @@ func newEnvWith(t *testing.T, cfg config.Config) *env {
 		r.Put("/guilds/{guildID}/ai", dashH.PutAI)
 		r.Delete("/guilds/{guildID}/ai", dashH.DeleteAI)
 		r.Put("/guilds/{guildID}/ai/behavior", dashH.PutAIBehavior)
+		r.Put("/guilds/{guildID}/ai/alerts", dashH.PutAIAlerts)
+		r.Post("/guilds/{guildID}/ai/alerts/channel", dashH.CreateAIAlertsChannel)
 		r.Post("/guilds/{guildID}/ai/test", dashH.TestAI)
 	})
-	return &env{t: t, st: st, router: r}
+	return &env{t: t, st: st, router: r, discord: fake}
 }
 
 func must(t *testing.T, err error) {

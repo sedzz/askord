@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { failure, jsonHeaders } from './api'
+import { MISSING_PERMISSIONS, type Option } from './tickets'
 
 // Conexión del servidor con su LLM (cualquier API compatible con OpenAI). La API key no
 // llega nunca al navegador: solo se sabe si hay una guardada.
@@ -12,6 +13,8 @@ export type AiConnection = {
   // Interruptor general del asistente en el servidor y sus pautas (markdown o texto plano).
   enabled: boolean
   guidelines: string
+  // Canal privado del staff donde el asistente avisa de los tickets que pasa a una persona.
+  alertsChannelId: string
 }
 
 export type AiInput = {
@@ -78,4 +81,23 @@ export async function testAi(guildId: string, input: AiInput): Promise<AiTestRes
 export async function deleteAi(guildId: string): Promise<void> {
   const res = await fetch(`/api/guilds/${guildId}/ai`, { method: 'DELETE' })
   if (!res.ok) throw await failure(res)
+}
+
+// Elige el canal de avisos del staff; con el canal vacío, lo quita.
+export async function saveAiAlerts(guildId: string, channelId: string): Promise<AiConnection> {
+  const res = await fetch(`/api/guilds/${guildId}/ai/alerts`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ channelId }),
+  })
+  if (!res.ok) throw await failure(res)
+  return res.json()
+}
+
+// Crea un canal privado (solo el rol de staff y el bot) y lo deja como canal de avisos.
+export async function createAlertsChannel(guildId: string): Promise<Option> {
+  const res = await fetch(`/api/guilds/${guildId}/ai/alerts/channel`, { method: 'POST' })
+  if (res.status === 403) throw new Error(MISSING_PERMISSIONS)
+  if (!res.ok) throw await failure(res)
+  return res.json()
 }

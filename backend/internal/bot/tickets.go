@@ -323,6 +323,26 @@ func (b *Bot) CreateTextChannel(guildID, name string) (Option, error) {
 	return Option{ID: c.ID, Name: c.Name}, nil
 }
 
+// CreateStaffChannel crea un canal de texto privado: solo lo ven el rol de staff y el bot. Sirve
+// para los avisos del asistente de IA, que llevan datos del caso que el usuario no debe ver.
+func (b *Bot) CreateStaffChannel(guildID, name, staffRoleID string) (Option, error) {
+	c, err := b.session.GuildChannelCreateComplex(guildID, discordgo.GuildChannelCreateData{
+		Name: name,
+		Type: discordgo.ChannelTypeGuildText,
+		PermissionOverwrites: []*discordgo.PermissionOverwrite{
+			// @everyone usa como ID el del propio servidor.
+			{ID: guildID, Type: discordgo.PermissionOverwriteTypeRole, Deny: discordgo.PermissionViewChannel},
+			{ID: staffRoleID, Type: discordgo.PermissionOverwriteTypeRole, Allow: ticketMemberPerms},
+			{ID: b.session.State.User.ID, Type: discordgo.PermissionOverwriteTypeMember, Allow: ticketBotPerms},
+		},
+	})
+	if err != nil {
+		return Option{}, wrapPermissionError(err)
+	}
+	b.rememberChannel(c)
+	return Option{ID: c.ID, Name: c.Name}, nil
+}
+
 // pickType elige el tipo pedido; con 0 (paneles antiguos) el primero. Sin ningún tipo
 // devuelve uno vacío, que usa los valores del servidor.
 func pickType(types []store.TicketType, id int64) (store.TicketType, bool) {

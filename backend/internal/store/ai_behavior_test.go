@@ -79,3 +79,53 @@ func TestTicketTypeAIFields(t *testing.T) {
 		t.Fatalf("lista: %d (%v)", len(list), err)
 	}
 }
+
+func TestAIAlertsChannel(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+
+	// Sin conexión no hay dónde guardarlo.
+	if err := st.SaveAIAlertsChannel(ctx, "g1", "c1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("sin conexión: %v, quería ErrNotFound", err)
+	}
+
+	conn := AISettings{BaseURL: "https://x/v1", Model: "m", KeyEnc: []byte("cifrada")}
+	if err := st.SaveAISettings(ctx, "g1", conn); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := st.GetAISettings(ctx, "g1"); a.AlertsChannelID != "" {
+		t.Errorf("una conexión nueva no tiene canal de avisos: %q", a.AlertsChannelID)
+	}
+
+	if err := st.SaveAIAlertsChannel(ctx, "g1", "c1"); err != nil {
+		t.Fatal(err)
+	}
+	// Ni editar la conexión ni cambiar el comportamiento lo pierden.
+	conn.Model, conn.KeyEnc = "m2", nil
+	if err := st.SaveAISettings(ctx, "g1", conn); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SaveAIBehavior(ctx, "g1", true, "pautas"); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := st.GetAISettings(ctx, "g1"); a.AlertsChannelID != "c1" || a.Model != "m2" || !a.Enabled {
+		t.Errorf("tras editar: %+v", a)
+	}
+
+	// Se puede quitar, y cada servidor tiene el suyo.
+	if err := st.SaveAISettings(ctx, "g2", conn); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SaveAIAlertsChannel(ctx, "g1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := st.GetAISettings(ctx, "g1"); a.AlertsChannelID != "" {
+		t.Errorf("no se quitó: %q", a.AlertsChannelID)
+	}
+	if err := st.SaveAIAlertsChannel(ctx, "g2", "c2"); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := st.GetAISettings(ctx, "g1"); a.AlertsChannelID != "" {
+		t.Error("el canal de g2 se coló en g1")
+	}
+}

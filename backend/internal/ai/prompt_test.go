@@ -162,6 +162,26 @@ func TestBuildMessagesLimitsCharacters(t *testing.T) {
 	}
 }
 
+// El resumen del caso es para el staff: las reglas deben dejar claro que va en el motivo y que al
+// usuario no se le escribe nada más al escalar.
+func TestRulesSayWhereTheSummaryGoes(t *testing.T) {
+	for _, want := range []string{
+		"no le escribas nada más ni le resumas el caso",
+		`campo "motivo"`,
+		"el usuario no ve",
+	} {
+		if !strings.Contains(systemRules, want) {
+			t.Errorf("las reglas no contienen %q", want)
+		}
+	}
+	for _, want := range []string{"no le escribas nada más", "Lo lee solo el staff"} {
+		desc := EscalateTool.Description + fmt.Sprint(EscalateTool.Parameters["properties"])
+		if !strings.Contains(desc, want) {
+			t.Errorf("la herramienta no explica %q", want)
+		}
+	}
+}
+
 func TestEscalateToolSchema(t *testing.T) {
 	if EscalateTool.Name != "escalar_a_staff" {
 		t.Errorf("nombre = %q", EscalateTool.Name)

@@ -3,13 +3,16 @@ package dashboard
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/sedzz/askord/internal/ai"
+	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/store"
 )
 
@@ -28,6 +31,8 @@ type aiView struct {
 	// Interruptor general del asistente y pautas del servidor.
 	Enabled    bool   `json:"enabled"`
 	Guidelines string `json:"guidelines"`
+	// Canal del staff donde el asistente avisa de los tickets que pasa a una persona.
+	AlertsChannelID string `json:"alertsChannelId"`
 }
 
 type aiBody struct {
@@ -61,7 +66,7 @@ func (h *Handler) aiView(a *store.AISettings) aiView {
 	v := aiView{Available: h.sealer != nil}
 	if a != nil {
 		v.BaseURL, v.Model, v.HasKey = a.BaseURL, a.Model, len(a.KeyEnc) > 0
-		v.Enabled, v.Guidelines = a.Enabled, a.Guidelines
+		v.Enabled, v.Guidelines, v.AlertsChannelID = a.Enabled, a.Guidelines, a.AlertsChannelID
 	}
 	return v
 }
@@ -140,6 +145,118 @@ func (h *Handler) PutAIBehavior(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.store.SaveAIBehavior(r.Context(), guildID, body.Enabled, guidelines); err != nil {
 		slog.Error("guardar comportamiento de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	saved, err := h.store.GetAISettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, h.aiView(saved))
+}
+
+// PutAIAlerts guarda el canal de avisos del staff; con el canal vacío, lo quita. Hace falta una
+// conexión guardada.
+func (h *Handler) PutAIAlerts(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+	if h.sealer == nil {
+		http.Error(w, "la IA no está disponible en este despliegue de Askord", http.StatusServiceUnavailable)
+		return
+	}
+	var body struct {
+		ChannelID string `json:"channelId"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body); err != nil {
+		http.Error(w, "cuerpo invalido", http.StatusBadRequest)
+		return
+	}
+	if !h.requireConnection(w, r, guildID) {
+		return
+	}
+
+	if body.ChannelID != "" {
+		channels, err := h.discord.TextChannels(guildID)
+		if err != nil {
+			slog.Error("listar canales", "err", err)
+			http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+			return
+		}
+		if !slices.ContainsFunc(channels, func(o bot.Option) bool { return o.ID == body.ChannelID }) {
+			http.Error(w, "canal invalido", http.StatusBadRequest)
+			return
+		}
+	}
+	h.saveAlertsChannel(w, r, guildID, body.ChannelID)
+}
+
+// CreateAIAlertsChannel crea un canal privado para el staff, donde solo entran el rol de staff y
+// el bot, y lo deja guardado como canal de avisos.
+func (h *Handler) CreateAIAlertsChannel(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+	if h.sealer == nil {
+		http.Error(w, "la IA no está disponible en este despliegue de Askord", http.StatusServiceUnavailable)
+		return
+	}
+	if !h.requireConnection(w, r, guildID) {
+		return
+	}
+	settings, err := h.store.GetTicketSettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de tickets", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if settings == nil || settings.StaffRoleID == "" {
+		http.Error(w, "elige antes el rol de staff en la configuración general", http.StatusConflict)
+		return
+	}
+
+	opt, err := h.discord.CreateStaffChannel(guildID, "avisos-ia", settings.StaffRoleID)
+	if errors.Is(err, bot.ErrMissingPermissions) {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	if err != nil {
+		slog.Error("crear canal de avisos", "err", err)
+		http.Error(w, "no se pudo consultar Discord", http.StatusBadGateway)
+		return
+	}
+	if err := h.store.SaveAIAlertsChannel(r.Context(), guildID, opt.ID); err != nil {
+		slog.Error("guardar canal de avisos", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(opt)
+}
+
+// requireConnection responde 400 si el servidor aún no tiene una conexión con API key.
+func (h *Handler) requireConnection(w http.ResponseWriter, r *http.Request, guildID string) bool {
+	existing, err := h.store.GetAISettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return false
+	}
+	if existing == nil || len(existing.KeyEnc) == 0 {
+		http.Error(w, "guarda antes la conexión con tu proveedor de IA", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func (h *Handler) saveAlertsChannel(w http.ResponseWriter, r *http.Request, guildID, channelID string) {
+	if err := h.store.SaveAIAlertsChannel(r.Context(), guildID, channelID); err != nil {
+		slog.Error("guardar canal de avisos", "err", err)
 		http.Error(w, "error interno", http.StatusInternalServerError)
 		return
 	}

@@ -98,6 +98,10 @@ func (l *fakeLLM) request(i int) llmRequest {
 	return l.requests[i]
 }
 
+// alertsChannel es el canal privado del staff donde el asistente avisa de los tickets que pasa
+// a una persona.
+const alertsChannel = "alerts-1"
+
 // aiEnv es un servidor con el asistente listo: conexión, interruptor, pautas, un tipo con IA y un
 // ticket abierto de ana en testChannel.
 type aiEnv struct {
@@ -128,6 +132,9 @@ func newAIEnv(t *testing.T) *aiEnv {
 		t.Fatal(err)
 	}
 	if err := st.SaveAIBehavior(ctx, "g1", true, "Sé amable."); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SaveAIAlertsChannel(ctx, "g1", alertsChannel); err != nil {
 		t.Fatal(err)
 	}
 	ty, err := st.CreateTicketType(ctx, "g1", store.TicketTypeInput{
@@ -196,6 +203,31 @@ func (e *aiEnv) posts() []string {
 		out = append(out, v.Content)
 	}
 	return out
+}
+
+// alerts devuelve el texto de los avisos que el bot publicó en el canal del staff.
+func (e *aiEnv) alerts() []string {
+	var out []string
+	for _, c := range e.f.find(http.MethodPost, "/channels/"+alertsChannel+"/messages") {
+		var v struct {
+			Content string `json:"content"`
+		}
+		_ = json.Unmarshal([]byte(c.Body), &v)
+		out = append(out, v.Content)
+	}
+	return out
+}
+
+// ticketNeverShows comprueba que lo que ve el usuario en su ticket no contiene datos internos.
+func (e *aiEnv) ticketNeverShows(secrets ...string) {
+	e.t.Helper()
+	for _, post := range e.posts() {
+		for _, secret := range secrets {
+			if strings.Contains(post, secret) {
+				e.t.Errorf("el usuario ve %q en su ticket: %q", secret, post)
+			}
+		}
+	}
 }
 
 func (e *aiEnv) ticket() *store.Ticket {
@@ -400,26 +432,38 @@ func TestAssistantEscalatesWithTheTool(t *testing.T) {
 	e := newAIEnv(t)
 	e.llm.handle = func(_ int, w http.ResponseWriter) {
 		// Dos llamadas a la herramienta a la vez: el staff debe enterarse una sola vez.
-		llmTools(w, "Te paso con una persona del equipo.", "Pide un reembolso", "Pide un reembolso")
+		llmTools(w, "Resumen del caso para el equipo: pide un reembolso de 50 USDT.", "Pide un reembolso de 50 USDT", "Pide un reembolso de 50 USDT")
 	}
 	e.history(user("quiero mi dinero"))
 
 	e.say(testOpener, "quiero mi dinero")
-	eventually(t, "el aviso al staff", func() bool { return len(e.posts()) == 2 })
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 && len(e.posts()) == 1 })
 	e.quiet()
 
+	// En el ticket, el usuario solo ve el aviso neutro: ni el resumen que el modelo escribió de
+	// más, ni el motivo, ni la mención al rol.
 	posts := e.posts()
-	if len(posts) != 2 || posts[0] != "Te paso con una persona del equipo." {
-		t.Fatalf("mensajes = %q", posts)
+	if len(posts) != 1 || !strings.Contains(posts[0], "Te paso con una persona del equipo; te atenderá") {
+		t.Fatalf("mensajes del ticket = %q", posts)
 	}
-	for _, want := range []string{"<@&" + testStaff + ">", "Pide un reembolso", "**Motivo:**"} {
-		if !strings.Contains(posts[1], want) {
-			t.Errorf("el aviso no contiene %q: %s", want, posts[1])
+	e.ticketNeverShows("Resumen del caso", "reembolso", "USDT", "<@&"+testStaff+">", "Motivo")
+
+	// El motivo y la mención van al canal privado del staff, con el enlace al ticket.
+	alerts := e.alerts()
+	if len(alerts) != 1 {
+		t.Fatalf("avisos del staff = %q, quería uno solo", alerts)
+	}
+	for _, want := range []string{
+		"<@&" + testStaff + ">", "Ticket #0099", "<#" + testChannel + ">", "<@" + testOpener + ">",
+		"Soporte", "**Motivo:** Pide un reembolso de 50 USDT",
+	} {
+		if !strings.Contains(alerts[0], want) {
+			t.Errorf("el aviso no contiene %q:\n%s", want, alerts[0])
 		}
 	}
-	notice := e.f.find(http.MethodPost, "/channels/"+testChannel+"/messages")[1].Body
-	if !strings.Contains(notice, `"parse":[]`) || !strings.Contains(notice, `"roles":["`+testStaff+`"]`) {
-		t.Errorf("el aviso solo debe mencionar al rol de staff: %s", notice)
+	body := e.f.find(http.MethodPost, "/channels/"+alertsChannel+"/messages")[0].Body
+	if !strings.Contains(body, `"parse":[]`) || !strings.Contains(body, `"roles":["`+testStaff+`"]`) {
+		t.Errorf("el aviso solo debe mencionar al rol de staff: %s", body)
 	}
 	if st := e.ticket().AIState; st != store.AIStateEscalated {
 		t.Errorf("estado = %q, quería escalated", st)
@@ -428,8 +472,8 @@ func TestAssistantEscalatesWithTheTool(t *testing.T) {
 	// Escalado, ya no contesta.
 	e.say(testOpener, "¿hola?")
 	e.quiet()
-	if e.llm.calls() != 1 || len(e.posts()) != 2 {
-		t.Errorf("tras escalar: %d consultas y %d mensajes", e.llm.calls(), len(e.posts()))
+	if e.llm.calls() != 1 || len(e.posts()) != 1 || len(e.alerts()) != 1 {
+		t.Errorf("tras escalar: %d consultas, %d mensajes y %d avisos", e.llm.calls(), len(e.posts()), len(e.alerts()))
 	}
 }
 
@@ -438,10 +482,14 @@ func TestAssistantEscalatesWithOnlyTheTool(t *testing.T) {
 	e.llm.handle = func(_ int, w http.ResponseWriter) { llmTools(w, "", "No sé resolverlo") }
 	e.history(user("algo raro"))
 	e.say(testOpener, "algo raro")
-	eventually(t, "el aviso al staff", func() bool { return len(e.posts()) == 1 })
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 })
 	e.quiet()
-	if got := e.posts(); len(got) != 1 || !strings.Contains(got[0], "No sé resolverlo") {
-		t.Errorf("mensajes = %q", got)
+	if got := e.alerts(); !strings.Contains(got[0], "No sé resolverlo") {
+		t.Errorf("avisos = %q", got)
+	}
+	// Sin texto del modelo, en el ticket solo queda el aviso neutro.
+	if got := e.posts(); len(got) != 1 || strings.Contains(got[0], "No sé resolverlo") {
+		t.Errorf("mensajes del ticket = %q", got)
 	}
 }
 
@@ -454,11 +502,15 @@ func TestAssistantEscalatesAtTheLimit(t *testing.T) {
 	}
 	e.history(user("otra pregunta"))
 	e.say(testOpener, "otra pregunta")
-	eventually(t, "el aviso al staff", func() bool { return len(e.posts()) == 1 })
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 && len(e.posts()) == 1 })
 	e.quiet()
 
-	if got := e.posts(); len(got) != 1 || !strings.Contains(got[0], "límite") || !strings.Contains(got[0], "<@&"+testStaff+">") {
-		t.Errorf("mensajes = %q", got)
+	if got := e.posts(); len(got) != 1 || !strings.Contains(got[0], "límite de respuestas automáticas") {
+		t.Errorf("mensajes del ticket = %q", got)
+	}
+	e.ticketNeverShows("<@&"+testStaff+">", "Motivo")
+	if got := e.alerts(); !strings.Contains(got[0], "<@&"+testStaff+">") || !strings.Contains(got[0], fmt.Sprintf("límite de %d respuestas", ai.MaxReplies)) {
+		t.Errorf("avisos = %q", got)
 	}
 	if e.llm.calls() != 0 {
 		t.Error("no debía consultar al modelo con el tope alcanzado")
@@ -485,15 +537,21 @@ func TestAssistantEscalatesWhenTheProviderFails(t *testing.T) {
 			e.llm.handle = c.handle
 			e.history(user("hola"))
 			e.say(testOpener, "hola")
-			eventually(t, "el aviso al staff", func() bool { return len(e.posts()) == 1 })
+			eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 && len(e.posts()) == 1 })
 			e.quiet()
 
-			got := e.posts()
-			if len(got) != 1 || !strings.Contains(got[0], "No puedo responder ahora mismo") ||
-				!strings.Contains(got[0], "<@&"+testStaff+">") || !strings.Contains(got[0], c.want) {
-				t.Errorf("mensajes = %q, debía avisar al usuario y al staff con %q", got, c.want)
+			// El usuario no ve el fallo técnico; solo sabe que lo atenderá una persona.
+			if got := e.posts(); len(got) != 1 || !strings.Contains(got[0], "No puedo responder ahora mismo") {
+				t.Errorf("mensajes del ticket = %q", got)
 			}
-			if strings.Contains(got[0], "sk-test") {
+			e.ticketNeverShows(c.want, "sk-test", "<@&"+testStaff+">", "Motivo")
+
+			// El staff sí: con el motivo técnico y sin la API key.
+			alerts := e.alerts()
+			if !strings.Contains(alerts[0], "<@&"+testStaff+">") || !strings.Contains(alerts[0], c.want) {
+				t.Errorf("aviso = %q, debía llevar la mención y %q", alerts[0], c.want)
+			}
+			if strings.Contains(alerts[0], "sk-test") {
 				t.Error("el aviso revela la API key")
 			}
 			if e.llm.calls() != 1 {
@@ -511,10 +569,11 @@ func TestAssistantEscalatesWhenTheKeyCannotBeRead(t *testing.T) {
 	storetest.Exec(t, e.st, `UPDATE ai_settings SET api_key_enc = '\x0102030405060708090a0b0c0d0e0f1011121314'`)
 	e.history(user("hola"))
 	e.say(testOpener, "hola")
-	eventually(t, "el aviso al staff", func() bool { return len(e.posts()) == 1 })
-	if got := e.posts()[0]; !strings.Contains(got, "volver a introducirla") {
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 })
+	if got := e.alerts()[0]; !strings.Contains(got, "volver a introducirla") {
 		t.Errorf("aviso = %q", got)
 	}
+	e.ticketNeverShows("volver a introducirla", "API key")
 	if e.llm.calls() != 0 {
 		t.Error("no debía consultar al modelo sin poder leer la clave")
 	}
@@ -788,4 +847,133 @@ func TestAssistantIsOffWithoutEnableAI(t *testing.T) {
 	b.onMessageCreate(nil, &discordgo.MessageCreate{Message: &discordgo.Message{
 		GuildID: "g1", ChannelID: testChannel, Content: "hola", Author: &discordgo.User{ID: testOpener},
 	}})
+}
+
+// Sin canal de avisos, el staff se entera por una mención en el ticket, pero sin el motivo.
+func TestAssistantFallsBackToTheTicketWithoutAnAlertsChannel(t *testing.T) {
+	e := newAIEnv(t)
+	if err := e.st.SaveAIAlertsChannel(context.Background(), "g1", ""); err != nil {
+		t.Fatal(err)
+	}
+	e.llm.handle = func(_ int, w http.ResponseWriter) { llmTools(w, "", "Pide un reembolso de 50 USDT") }
+	e.history(user("quiero mi dinero"))
+	e.say(testOpener, "quiero mi dinero")
+	eventually(t, "el aviso", func() bool { return len(e.posts()) == 1 })
+	e.quiet()
+
+	posts := e.posts()
+	if !strings.Contains(posts[0], "<@&"+testStaff+">") || !strings.Contains(posts[0], "Te paso con una persona del equipo") {
+		t.Errorf("aviso en el ticket = %q", posts[0])
+	}
+	e.ticketNeverShows("reembolso", "USDT", "Motivo")
+	if len(e.alerts()) != 0 {
+		t.Error("no hay canal de avisos: no debía publicarse en ninguno")
+	}
+}
+
+// Si el canal de avisos se borró o el bot no puede escribir en él, el staff no se queda sin aviso.
+func TestAssistantFallsBackWhenTheAlertsChannelFails(t *testing.T) {
+	e := newAIEnv(t)
+	e.f.missing["/channels/"+alertsChannel+"/messages"] = true
+	e.llm.handle = func(_ int, w http.ResponseWriter) { llmTools(w, "", "Pide un reembolso de 50 USDT") }
+	e.history(user("quiero mi dinero"))
+	e.say(testOpener, "quiero mi dinero")
+	eventually(t, "el aviso", func() bool { return len(e.posts()) == 1 })
+	e.quiet()
+
+	posts := e.posts()
+	if !strings.Contains(posts[0], "<@&"+testStaff+">") {
+		t.Errorf("aviso en el ticket = %q, debía mencionar al staff", posts[0])
+	}
+	e.ticketNeverShows("reembolso", "USDT", "Motivo")
+	if st := e.ticket().AIState; st != store.AIStateEscalated {
+		t.Errorf("estado = %q", st)
+	}
+}
+
+func TestCreateStaffChannel(t *testing.T) {
+	b, f, _ := newTestBot(t)
+	opt, err := b.CreateStaffChannel("g1", "avisos-ia", testStaff)
+	if err != nil || opt.ID != "new-channel" {
+		t.Fatalf("canal = %+v (%v)", opt, err)
+	}
+
+	calls := f.find(http.MethodPost, "/guilds/g1/channels")
+	if len(calls) != 1 {
+		t.Fatalf("%d peticiones, quería 1", len(calls))
+	}
+	var body struct {
+		Name       string `json:"name"`
+		Overwrites []struct {
+			ID    string `json:"id"`
+			Allow any    `json:"allow"`
+			Deny  any    `json:"deny"`
+		} `json:"permission_overwrites"`
+	}
+	if err := json.Unmarshal([]byte(calls[0].Body), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Name != "avisos-ia" {
+		t.Errorf("nombre = %q", body.Name)
+	}
+	zero := func(v any) bool { return fmt.Sprint(v) == "0" }
+	seen := map[string]bool{}
+	for _, o := range body.Overwrites {
+		seen[o.ID] = true
+		switch o.ID {
+		case "g1": // @everyone no ve el canal
+			if zero(o.Deny) || !zero(o.Allow) {
+				t.Errorf("@everyone: permitir %v, denegar %v; debía denegar ver el canal", o.Allow, o.Deny)
+			}
+		case testStaff: // el staff sí
+			if zero(o.Allow) || !zero(o.Deny) {
+				t.Errorf("staff: permitir %v, denegar %v", o.Allow, o.Deny)
+			}
+		case "bot":
+			if zero(o.Allow) {
+				t.Error("el bot debe poder usar el canal")
+			}
+		}
+	}
+	for _, id := range []string{"g1", testStaff, "bot"} {
+		if !seen[id] {
+			t.Errorf("falta el permiso de %q", id)
+		}
+	}
+}
+
+// El resumen del caso entero llega al staff: el motivo no se recorta como una frase corta.
+func TestAssistantAlertCarriesTheFullSummary(t *testing.T) {
+	e := newAIEnv(t)
+	hash := "0xd185886c072696f79877392654c86753dde0c194d9e88329f39510d0cab28774"
+	summary := "El usuario marcus pagó un challenge con USDT en la red BSC y la cuenta no aparece en la app. " +
+		"Hash de transacción: " + hash + ". " + strings.Repeat("Detalle del caso. ", 25) + "FIN-DEL-RESUMEN"
+	if n := len([]rune(summary)); n < 400 || n > maxReasonChars {
+		t.Fatalf("el resumen de la prueba mide %d caracteres", n)
+	}
+	e.llm.handle = func(_ int, w http.ResponseWriter) { llmTools(w, "", summary) }
+	e.history(user("pagué y no tengo la cuenta"))
+	e.say(testOpener, "pagué y no tengo la cuenta")
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 })
+
+	alert := e.alerts()[0]
+	if !strings.Contains(alert, hash) || !strings.Contains(alert, "FIN-DEL-RESUMEN") {
+		t.Errorf("el aviso recortó el resumen:\n%s", alert)
+	}
+	if n := len([]rune(alert)); n > discordMessageMax {
+		t.Errorf("el aviso mide %d caracteres y Discord admite %d", n, discordMessageMax)
+	}
+	e.ticketNeverShows(hash, "USDT", "marcus")
+}
+
+// Un motivo desmesurado se recorta para que el aviso siga cabiendo en un mensaje de Discord.
+func TestAssistantAlertTruncatesAHugeReason(t *testing.T) {
+	e := newAIEnv(t)
+	e.llm.handle = func(_ int, w http.ResponseWriter) { llmTools(w, "", strings.Repeat("x", 5000)) }
+	e.history(user("hola"))
+	e.say(testOpener, "hola")
+	eventually(t, "el aviso al staff", func() bool { return len(e.alerts()) == 1 })
+	if n := len([]rune(e.alerts()[0])); n > discordMessageMax {
+		t.Errorf("el aviso mide %d caracteres", n)
+	}
 }

@@ -17,14 +17,17 @@ type AISettings struct {
 	// SaveAISettings (la conexión): se cambian con SaveAIBehavior.
 	Enabled    bool
 	Guidelines string
+	// Canal del staff donde se avisa de los tickets que pasan a una persona; vacío si no hay.
+	// Tampoco lo toca SaveAISettings: se cambia con SaveAIAlertsChannel.
+	AlertsChannelID string
 }
 
 // GetAISettings devuelve la conexión del servidor, o nil si no hay.
 func (s *Store) GetAISettings(ctx context.Context, guildID string) (*AISettings, error) {
 	var a AISettings
 	err := s.pool.QueryRow(ctx,
-		`SELECT base_url, model, enabled, guidelines, api_key_enc FROM ai_settings WHERE guild_id = $1`, guildID).
-		Scan(&a.BaseURL, &a.Model, &a.Enabled, &a.Guidelines, &a.KeyEnc)
+		`SELECT base_url, model, enabled, guidelines, alerts_channel_id, api_key_enc FROM ai_settings WHERE guild_id = $1`, guildID).
+		Scan(&a.BaseURL, &a.Model, &a.Enabled, &a.Guidelines, &a.AlertsChannelID, &a.KeyEnc)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -66,4 +69,18 @@ func (s *Store) SaveAIBehavior(ctx context.Context, guildID string, enabled bool
 func (s *Store) DeleteAISettings(ctx context.Context, guildID string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM ai_settings WHERE guild_id = $1`, guildID)
 	return err
+}
+
+// SaveAIAlertsChannel guarda el canal de avisos del staff (vacío para quitarlo). Devuelve
+// ErrNotFound si el servidor aún no tiene conexión.
+func (s *Store) SaveAIAlertsChannel(ctx context.Context, guildID, channelID string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE ai_settings SET alerts_channel_id = $2, updated_at = now() WHERE guild_id = $1`, guildID, channelID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -107,6 +107,8 @@ func run() error {
 		r.Put("/guilds/{guildID}/ai", dashH.PutAI)
 		r.Delete("/guilds/{guildID}/ai", dashH.DeleteAI)
 		r.Put("/guilds/{guildID}/ai/behavior", dashH.PutAIBehavior)
+		r.Put("/guilds/{guildID}/ai/alerts", dashH.PutAIAlerts)
+		r.Post("/guilds/{guildID}/ai/alerts/channel", dashH.CreateAIAlertsChannel)
 		r.Post("/guilds/{guildID}/ai/test", dashH.TestAI)
 		r.Get("/guilds/{guildID}/transcripts", dashH.ListTranscripts)
 		r.Get("/guilds/{guildID}/transcripts/export", dashH.ExportTranscripts)
