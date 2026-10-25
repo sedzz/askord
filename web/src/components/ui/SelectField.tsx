@@ -1,7 +1,7 @@
 import { useId } from 'react'
-import { MISSING_PERMISSIONS, type Option } from '../lib/tickets'
-import { Button } from './ui/Button'
-import { Select } from './ui/Select'
+import { MISSING_PERMISSIONS, type Option } from '../../lib/tickets'
+import { Button } from './Button'
+import { Select } from './Select'
 
 type Props = {
   label: string

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { TicketTypes } from '../components/TicketTypes'
+import { TicketTypes } from '../components/tickets/TicketTypes'
 import { useSetup } from '../lib/ticketSetupContext'
 
 export const Route = createFileRoute('/guilds/$guildId/settings/tickets')({

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { TicketSetup } from '../lib/useTicketSetup'
+import type { TicketSetup } from '../../lib/useTicketSetup'
 import { CategoryField, PanelField, RoleField } from './TicketFields'
 import { CategoryPreview, PanelPreview, WelcomePreview } from './TicketPreviews'
-import { Button } from './ui/Button'
-import { Confetti } from './ui/Confetti'
-import { Dialog } from './ui/Dialog'
-import { Stepper } from './ui/Stepper'
+import { Button } from '../ui/Button'
+import { Confetti } from '../ui/Confetti'
+import { Dialog } from '../ui/Dialog'
+import { Stepper } from '../ui/Stepper'
 
 const WELCOME = 0
 const ROLE = 1

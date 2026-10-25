@@ -1,6 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useState, type ReactNode } from 'react'
-import { guildIconUrl, type Guild } from '../lib/guilds'
+import { guildIconUrl, type Guild } from '../../lib/guilds'
 
 type Props = {
   guildId: string

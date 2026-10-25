@@ -7,7 +7,7 @@ import {
   DiscordFrame,
   DiscordMention,
   DiscordMessage,
-} from './discord/Discord'
+} from '../discord/Discord'
 
 // Vistas previas de lo que verán en Discord, con los nombres que se van eligiendo.
 // Los textos deben coincidir con los que envía el bot (backend/internal/bot/tickets.go).

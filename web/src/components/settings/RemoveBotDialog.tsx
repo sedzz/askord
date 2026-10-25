@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { guildsQuery, removeGuild } from '../lib/guilds'
-import { Button } from './ui/Button'
-import { Dialog } from './ui/Dialog'
+import { guildsQuery, removeGuild } from '../../lib/guilds'
+import { Button } from '../ui/Button'
+import { Dialog } from '../ui/Dialog'
 
 type Props = {
   guildId: string

@@ -1,7 +1,7 @@
-import { toast } from '../lib/toast'
-import { MISSING_PERMISSIONS } from '../lib/tickets'
-import type { TicketSetup } from '../lib/useTicketSetup'
-import { SelectField } from './SelectField'
+import { toast } from '../../lib/toast'
+import { MISSING_PERMISSIONS } from '../../lib/tickets'
+import type { TicketSetup } from '../../lib/useTicketSetup'
+import { SelectField } from '../ui/SelectField'
 
 type Props = { setup: TicketSetup }
 

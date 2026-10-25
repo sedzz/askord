@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { AiConnection, AiStatus } from '../components/AiConnection'
+import { AiConnection, AiStatus } from '../components/ai/AiConnection'
 import { Skeleton } from '../components/ui/Skeleton'
 import { aiQuery } from '../lib/ai'
 

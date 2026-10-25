@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import { AppShell } from '../components/AppShell'
+import { AppShell } from '../components/layout/AppShell'
 import { Button } from '../components/ui/Button'
 import { GuildRowsSkeleton } from '../components/skeletons'
 import { buttonClassName } from '../components/ui/button-styles'

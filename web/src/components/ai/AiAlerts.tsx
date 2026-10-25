@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { aiQuery, createAlertsChannel, saveAiAlerts, type AiConnection } from '../lib/ai'
-import { useSetup } from '../lib/ticketSetupContext'
-import { MISSING_PERMISSIONS, ticketConfigQuery, type TicketConfig } from '../lib/tickets'
-import { toast } from '../lib/toast'
-import { SelectField } from './SelectField'
-import { Button } from './ui/Button'
+import { aiQuery, createAlertsChannel, saveAiAlerts, type AiConnection } from '../../lib/ai'
+import { useSetup } from '../../lib/ticketSetupContext'
+import { MISSING_PERMISSIONS, ticketConfigQuery, type TicketConfig } from '../../lib/tickets'
+import { toast } from '../../lib/toast'
+import { SelectField } from '../ui/SelectField'
+import { Button } from '../ui/Button'
 
 type Props = { guildId: string; connection: AiConnection }
 

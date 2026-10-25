@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import '../components/dashboard.css'
+import '../components/dashboard/dashboard.css'
 import { BarChart } from '../components/ui/BarChart'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { DashboardSkeleton } from '../components/skeletons'

@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { aiQuery, MAX_AI_ESCALATION, MAX_AI_INSTRUCTIONS } from '../lib/ai'
-import { useSetup } from '../lib/ticketSetupContext'
-import { toast } from '../lib/toast'
+import { aiQuery, MAX_AI_ESCALATION, MAX_AI_INSTRUCTIONS } from '../../lib/ai'
+import { useSetup } from '../../lib/ticketSetupContext'
+import { toast } from '../../lib/toast'
 import {
   createTicketType,
   deleteTicketType,
@@ -16,16 +16,16 @@ import {
   type TicketType,
   type Question,
   type TicketTypeInput,
-} from '../lib/ticketTypes'
+} from '../../lib/ticketTypes'
 import './ticket-types.css'
-import { Button } from './ui/Button'
-import { Checkbox } from './ui/Checkbox'
-import { Dialog } from './ui/Dialog'
-import { FormField } from './ui/FormField'
-import { Input } from './ui/Input'
-import { Select } from './ui/Select'
-import { Skeleton } from './ui/Skeleton'
-import { Textarea } from './ui/Textarea'
+import { Button } from '../ui/Button'
+import { Checkbox } from '../ui/Checkbox'
+import { Dialog } from '../ui/Dialog'
+import { FormField } from '../ui/FormField'
+import { Input } from '../ui/Input'
+import { Select } from '../ui/Select'
+import { Skeleton } from '../ui/Skeleton'
+import { Textarea } from '../ui/Textarea'
 
 // Tipos de ticket del servidor: lista, orden, alta, edición y borrado.
 export function TicketTypes({ guildId }: { guildId: string }) {

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { guildIconUrl, guildsQuery } from '../lib/guilds'
-import { Skeleton } from './ui/Skeleton'
+import { guildIconUrl, guildsQuery } from '../../lib/guilds'
+import { Skeleton } from '../ui/Skeleton'
 
 // Barra lateral con los servidores donde está el bot, al estilo de Discord.
 // Sin ninguno, no se muestra: el inicio ofrece entonces añadir el primero.

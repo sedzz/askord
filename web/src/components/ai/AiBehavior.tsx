@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
-import { aiQuery, MAX_GUIDELINES, saveAiBehavior, type AiConnection } from '../lib/ai'
-import { toast } from '../lib/toast'
-import { Button } from './ui/Button'
-import { Switch } from './ui/Switch'
-import { FormField } from './ui/FormField'
-import { Textarea } from './ui/Textarea'
+import { aiQuery, MAX_GUIDELINES, saveAiBehavior, type AiConnection } from '../../lib/ai'
+import { toast } from '../../lib/toast'
+import { Button } from '../ui/Button'
+import { Switch } from '../ui/Switch'
+import { FormField } from '../ui/FormField'
+import { Textarea } from '../ui/Textarea'
 
 type Props = { guildId: string; connection: AiConnection }
 

@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import '../components/transcripts.css'
+import '../components/transcripts/transcripts.css'
 import { Button } from '../components/ui/Button'
 import { buttonClassName } from '../components/ui/button-styles'
 import { Input } from '../components/ui/Input'

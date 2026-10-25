@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState, type ReactNode } from 'react'
-import { avatarUrl, logout, meQuery } from '../lib/auth'
-import { guildsQuery } from '../lib/guilds'
-import { setPendingInvite, usePendingInvite } from '../lib/pendingInvite'
+import { avatarUrl, logout, meQuery } from '../../lib/auth'
+import { guildsQuery } from '../../lib/guilds'
+import { setPendingInvite, usePendingInvite } from '../../lib/pendingInvite'
 import { AddServerDialog } from './AddServerDialog'
 import { ServerRail } from './ServerRail'
-import { Button } from './ui/Button'
+import { Button } from '../ui/Button'
 
 type Props = {
   // Servidor abierto, para marcarlo en la barra lateral.
