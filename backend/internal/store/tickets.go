@@ -33,6 +33,9 @@ type Ticket struct {
 	// Cierre del ticket (nil si sigue abierto) y si su contenido ya se borró.
 	ClosedAt        *time.Time
 	ContentPurgedAt *time.Time
+	// Estado del asistente de IA en este ticket (AIState*) y cuántas respuestas ha dado.
+	AIState   string
+	AIReplies int
 }
 
 // TranscriptExpired indica si el contenido del ticket ya no se puede guardar: se borró o
@@ -112,9 +115,11 @@ func (s *Store) TicketByChannel(ctx context.Context, channelID string) (*Ticket,
 		status string
 	)
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0), status, closed_at, content_purged_at
+		SELECT id, guild_id, number, channel_id, opener_id, COALESCE(type_id, 0), status, closed_at, content_purged_at,
+		       answers, ai_state, ai_replies
 		FROM tickets WHERE channel_id = $1`, channelID).
-		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID, &status, &t.ClosedAt, &t.ContentPurgedAt)
+		Scan(&t.ID, &t.GuildID, &t.Number, &t.ChannelID, &t.OpenerID, &t.TypeID, &status, &t.ClosedAt, &t.ContentPurgedAt,
+			&t.Answers, &t.AIState, &t.AIReplies)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, "", nil
 	}
