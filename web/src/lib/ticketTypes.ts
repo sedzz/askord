@@ -17,6 +17,10 @@ export type TicketType = {
   staffRoleId: string
   position: number
   questions: Question[]
+  // Asistente de IA: si atiende los tickets de este tipo, cómo, y cuándo los pasa a una persona.
+  aiEnabled: boolean
+  aiInstructions: string
+  aiEscalation: string
 }
 
 export type TicketTypeInput = Omit<TicketType, 'id' | 'position'>

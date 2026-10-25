@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { Link } from '@tanstack/react-router'
+import { useState, type FormEvent, type ReactNode } from 'react'
+import { aiQuery, MAX_AI_ESCALATION, MAX_AI_INSTRUCTIONS } from '../lib/ai'
 import { useSetup } from '../lib/ticketSetupContext'
 import { toast } from '../lib/toast'
 import {
@@ -23,6 +25,7 @@ import { FormField } from './ui/FormField'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { Skeleton } from './ui/Skeleton'
+import { Textarea } from './ui/Textarea'
 
 // Tipos de ticket del servidor: lista, orden, alta, edición y borrado.
 export function TicketTypes({ guildId }: { guildId: string }) {
@@ -102,10 +105,11 @@ export function TicketTypes({ guildId }: { guildId: string }) {
                 <div className="type-main">
                   <strong>{t.name}</strong>
                   {t.description && <span className="type-desc">{t.description}</span>}
-                  {(category || role || t.questions.length > 0) && (
+                  {(category || role || t.questions.length > 0 || t.aiEnabled) && (
                     <span className="type-chips">
                       {category && <span className="chip">{category}</span>}
                       {role && <span className="chip">@{role}</span>}
+                      {t.aiEnabled && <span className="chip">Atiende la IA</span>}
                       {t.questions.length > 0 && (
                         <span className="chip">
                           {t.questions.length} {t.questions.length === 1 ? 'pregunta' : 'preguntas'}
@@ -182,6 +186,9 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
     categoryId: current?.categoryId || config.settings?.categoryId || '',
     staffRoleId: current?.staffRoleId || config.settings?.staffRoleId || '',
     questions: current?.questions ?? [],
+    aiEnabled: current?.aiEnabled ?? false,
+    aiInstructions: current?.aiInstructions ?? '',
+    aiEscalation: current?.aiEscalation ?? '',
   })
   const set = <K extends keyof TicketTypeInput>(key: K, value: TicketTypeInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -275,6 +282,8 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
 
         <QuestionsEditor questions={form.questions} onChange={(q) => set('questions', q)} />
 
+        <AiSection guildId={guildId} form={form} set={set} />
+
         {save.isError && <small className="error">{save.error.message}</small>}
 
         <div className="tour-actions">
@@ -288,7 +297,9 @@ function TypeDialog({ guildId, editing, onClose }: TypeDialogProps) {
               !form.name.trim() ||
               !form.categoryId ||
               !form.staffRoleId ||
-              form.questions.some((q) => !q.label.trim())
+              form.questions.some((q) => !q.label.trim()) ||
+              textLength(form.aiInstructions) > MAX_AI_INSTRUCTIONS ||
+              textLength(form.aiEscalation) > MAX_AI_ESCALATION
             }
           >
             {save.isPending ? 'Guardando' : current ? 'Guardar' : 'Crear tipo'}
@@ -400,6 +411,95 @@ function QuestionsEditor({
         >
           Añadir pregunta
         </Button>
+      )}
+    </fieldset>
+  )
+}
+
+// Caracteres de un texto como los cuenta el servidor: sin los espacios de los extremos y
+// con un emoji como uno solo.
+const textLength = (text: string) => [...text.trim()].length
+
+// Si el asistente de IA atiende este tipo, cómo, y cuándo pasa el ticket a una persona.
+function AiSection({
+  guildId,
+  form,
+  set,
+}: {
+  guildId: string
+  form: TicketTypeInput
+  set: <K extends keyof TicketTypeInput>(key: K, value: TicketTypeInput[K]) => void
+}) {
+  const { data: ai } = useQuery(aiQuery(guildId))
+
+  // Por qué, aunque se active aquí, el asistente aún no atenderá estos tickets.
+  let notice: ReactNode = null
+  if (ai && !ai.available) {
+    notice = 'La IA no está disponible en este servidor de Askord.'
+  } else if (ai && !ai.hasKey) {
+    notice = (
+      <>
+        Aún no has conectado un proveedor de IA.{' '}
+        <Link to="/guilds/$guildId/settings/ai" params={{ guildId }}>
+          Conectarlo
+        </Link>
+      </>
+    )
+  } else if (ai && !ai.enabled) {
+    notice = (
+      <>
+        El asistente está desactivado en este servidor.{' '}
+        <Link to="/guilds/$guildId/settings/ai" params={{ guildId }}>
+          Activarlo
+        </Link>
+      </>
+    )
+  }
+
+  return (
+    <fieldset className="questions ai-section">
+      <legend>Asistente de IA</legend>
+      <Checkbox checked={form.aiEnabled} onChange={(v) => set('aiEnabled', v)}>
+        Atender los tickets de este tipo con el asistente de IA
+      </Checkbox>
+      {form.aiEnabled && notice && <p className="questions-hint">{notice}</p>}
+
+      {form.aiEnabled && (
+        <>
+          <FormField
+            label="Instrucciones"
+            hint="Qué debe hacer con estos tickets: qué preguntar, qué información dar, qué problemas resolver. Se suman a las pautas generales del servidor. Admite markdown."
+          >
+            {({ id }) => (
+              <Textarea
+                id={id}
+                value={form.aiInstructions}
+                onChange={(v) => set('aiInstructions', v)}
+                limit={MAX_AI_INSTRUCTIONS}
+                rows={5}
+                placeholder="Ayuda con los pagos: pide el número de pedido, explica los plazos de facturación…"
+                spellCheck
+              />
+            )}
+          </FormField>
+
+          <FormField
+            label="Cuándo pasar a una persona"
+            hint="En qué casos el asistente debe dejar de responder y avisar al staff."
+          >
+            {({ id }) => (
+              <Textarea
+                id={id}
+                value={form.aiEscalation}
+                onChange={(v) => set('aiEscalation', v)}
+                limit={MAX_AI_ESCALATION}
+                rows={3}
+                placeholder="Si piden un reembolso, si el usuario está muy molesto o si no sabes resolverlo…"
+                spellCheck
+              />
+            )}
+          </FormField>
+        </>
       )}
     </fieldset>
   )
