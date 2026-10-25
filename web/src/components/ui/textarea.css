@@ -1,0 +1,45 @@
+.ui-textarea-wrap {
+  display: grid;
+  gap: 4px;
+}
+
+.ui-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-h);
+  overflow: hidden;
+  resize: none;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.ui-textarea::placeholder {
+  color: var(--text);
+}
+
+.ui-textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.ui-textarea:disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.ui-textarea-count {
+  justify-self: end;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.ui-textarea-count.over {
+  color: var(--danger);
+}

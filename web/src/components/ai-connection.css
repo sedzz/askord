@@ -1,44 +1,110 @@
-.ai-table-wrap {
-  max-width: 880px;
-  margin-top: 24px;
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-
-.ai-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.ai-table th,
-.ai-table td {
-  padding: 10px 16px;
-  text-align: left;
-  vertical-align: middle;
-}
-
-.ai-table th {
-  font-size: 0.8125rem;
-  font-weight: 500;
+.ai-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 0.875rem;
   color: var(--text);
-  background: rgb(255 255 255 / 3%);
-  border-bottom: 1px solid var(--border);
 }
 
-.ai-table td {
+.ai-status strong {
+  font-weight: 500;
   color: var(--text-h);
-  overflow-wrap: anywhere;
 }
 
-.ai-table-actions {
-  width: 1%;
-  text-align: right;
-  white-space: nowrap;
+.ai-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
 }
 
 /* El formulario dentro de un diálogo: sin el hueco ni el ancho máximo de la página. */
 .ai-dialog-form {
   max-width: none;
   margin-top: 0;
+}
+
+.settings-section .ai-guidelines-label {
+  margin: 4px 0 6px;
+  font-size: 0.8125rem;
+}
+
+/* Pautas guardadas: el texto tal cual, con sus saltos de línea, en una caja como la del editor. */
+.ai-guidelines {
+  padding: 8px 12px;
+  /* Mismo tipo de letra, tamaño y relleno que el cuadro de edición (.ai-guidelines-edit): el
+     texto no se mueve al editar. */
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-h);
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Recortadas a unas pocas líneas hasta que se pulsa "Ver todo". */
+.ai-guidelines.clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.ai-text-button {
+  justify-self: start;
+  padding: 0;
+  text-align: left;
+  margin-top: 6px;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--accent);
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.ai-text-button:hover {
+  text-decoration: underline;
+}
+
+.ai-text-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+/* Las pautas guardadas se editan pulsándolas. */
+.ai-guidelines.editable {
+  cursor: text;
+  transition: border-color 0.15s;
+}
+
+.ai-guidelines.editable:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Botón de guardar que acompaña al usuario cuando el de debajo del texto no se ve. */
+.ai-floating-save {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+/* El cuadro de edición de las pautas, con la misma letra que su vista de lectura. */
+.ui-textarea.ai-guidelines-edit {
+  font-size: 1rem;
+}
+
+/* El formulario de pautas ocupa todo el ancho de la página (los demás formularios, 560 px). */
+.form.ai-behavior-form {
+  max-width: none;
 }

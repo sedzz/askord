@@ -8,8 +8,10 @@ export type AiConnection = {
   available: boolean
   baseUrl: string
   model: string
-  enabled: boolean
   hasKey: boolean
+  // Interruptor general del asistente en el servidor y sus pautas (markdown o texto plano).
+  enabled: boolean
+  guidelines: string
 }
 
 export type AiInput = {
@@ -17,8 +19,14 @@ export type AiInput = {
   model: string
   // Vacía: se conserva la que ya había guardada.
   apiKey: string
-  enabled: boolean
 }
+
+export type AiBehaviorInput = { enabled: boolean; guidelines: string }
+
+// Límites de caracteres de los textos de IA (iguales a los del servidor).
+export const MAX_GUIDELINES = 4000
+export const MAX_AI_INSTRUCTIONS = 2000
+export const MAX_AI_ESCALATION = 1000
 
 export type AiTestResult = { ok: boolean; message?: string }
 
@@ -34,6 +42,19 @@ export const aiQuery = (guildId: string) =>
 
 export async function saveAi(guildId: string, input: AiInput): Promise<AiConnection> {
   const res = await fetch(`/api/guilds/${guildId}/ai`, {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw await failure(res)
+  return res.json()
+}
+
+export async function saveAiBehavior(
+  guildId: string,
+  input: AiBehaviorInput,
+): Promise<AiConnection> {
+  const res = await fetch(`/api/guilds/${guildId}/ai/behavior`, {
     method: 'PUT',
     headers: jsonHeaders,
     body: JSON.stringify(input),

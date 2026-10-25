@@ -2,19 +2,41 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { aiQuery, deleteAi, saveAi, testAi, type AiConnection as Connection } from '../lib/ai'
 import { toast } from '../lib/toast'
+import { AiBehavior } from './AiBehavior'
 import { Button } from './ui/Button'
 import { Dialog } from './ui/Dialog'
 import { FormField } from './ui/FormField'
 import { Input } from './ui/Input'
 import './ai-connection.css'
 
-type Props = { guildId: string; connection: Connection }
+type Props = {
+  guildId: string
+  connection: Connection
+  // El diálogo de edición lo abre AiStatus, que vive en la cabecera de la página.
+  editOpen: boolean
+  onEditOpenChange: (open: boolean) => void
+}
 
-// Conexión con el LLM: sin ninguna guardada, el formulario; con una, un resumen con un botón
-// para editarla en un diálogo y otro para eliminarla.
-export function AiConnection({ guildId, connection }: Props) {
+// Estado de la conexión y botón para editarla, para la cabecera de la página.
+export function AiStatus({ connection, onEdit }: { connection: Connection; onEdit: () => void }) {
+  return (
+    <div className="ai-status">
+      <span className="ai-status-dot" aria-hidden="true" />
+      <span>
+        Conectado a <strong>{connection.model}</strong>
+      </span>
+      <Button variant="outline" onClick={onEdit}>
+        Editar conexión
+      </Button>
+    </div>
+  )
+}
+
+// Conexión con el LLM: sin ninguna guardada, el formulario. Con una, la página se centra en el
+// comportamiento del asistente; la conexión se edita en un diálogo (desde AiStatus) y
+// eliminarla está al final.
+export function AiConnection({ guildId, connection, editOpen, onEditOpenChange }: Props) {
   const queryClient = useQueryClient()
-  const [editOpen, setEditOpen] = useState(false)
   const [removeOpen, setRemoveOpen] = useState(false)
 
   const remove = useMutation({
@@ -25,6 +47,7 @@ export function AiConnection({ guildId, connection }: Props) {
         baseUrl: '',
         model: '',
         enabled: false,
+        guidelines: '',
         hasKey: false,
       })
       setRemoveOpen(false)
@@ -38,30 +61,7 @@ export function AiConnection({ guildId, connection }: Props) {
 
   return (
     <>
-      <div className="ai-table-wrap">
-        <table className="ai-table">
-          <thead>
-            <tr>
-              <th>URL de la API</th>
-              <th>Modelo</th>
-              <th>
-                <span className="visually-hidden">Acciones</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{connection.baseUrl}</td>
-              <td>{connection.model}</td>
-              <td className="ai-table-actions">
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  Editar
-                </Button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <AiBehavior guildId={guildId} connection={connection} />
 
       <section className="danger-zone">
         <h2>Eliminar conexión</h2>
@@ -71,12 +71,12 @@ export function AiConnection({ guildId, connection }: Props) {
         </Button>
       </section>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen} title="Editar conexión con el LLM">
+      <Dialog open={editOpen} onOpenChange={onEditOpenChange} title="Editar conexión con el LLM">
         <AiForm
           guildId={guildId}
           connection={connection}
-          onSaved={() => setEditOpen(false)}
-          onCancel={() => setEditOpen(false)}
+          onSaved={() => onEditOpenChange(false)}
+          onCancel={() => onEditOpenChange(false)}
         />
       </Dialog>
 
@@ -111,7 +111,7 @@ function AiForm({ guildId, connection, onSaved, onCancel }: FormProps) {
   const [model, setModel] = useState(connection.model)
   const [apiKey, setApiKey] = useState('')
 
-  const input = { baseUrl, model, apiKey, enabled: connection.enabled }
+  const input = { baseUrl, model, apiKey }
   const ready = baseUrl.trim() !== '' && model.trim() !== '' && (apiKey !== '' || connection.hasKey)
 
   const test = useMutation({ mutationFn: () => testAi(guildId, input) })
