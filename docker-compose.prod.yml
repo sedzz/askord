@@ -1,0 +1,50 @@
+# Despliegue en producción. En el servidor se guarda como docker-compose.yml
+# junto a un .env (ver .env.production.example). Ningún puerto se publica:
+# la única entrada es el túnel de Cloudflare.
+name: askord
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: askord
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: askord
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U askord"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ghcr.io/sedzz/askord-backend:${ASKORD_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: postgres://askord:${POSTGRES_PASSWORD}@postgres:5432/askord?sslmode=disable
+      COOKIE_SECURE: "true"
+
+  web:
+    image: ghcr.io/sedzz/askord-web:${ASKORD_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?define TUNNEL_TOKEN en .env}
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
