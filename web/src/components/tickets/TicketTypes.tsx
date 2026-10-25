@@ -1,3 +1,21 @@
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import { CSS } from '@dnd-kit/utilities'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState, type FormEvent, type ReactNode } from 'react'
@@ -27,11 +45,20 @@ import { Select } from '../ui/Select'
 import { Skeleton } from '../ui/Skeleton'
 import { Textarea } from '../ui/Textarea'
 
+// Los tipos de la lista puestos en el orden de ids (los que ya no existan se descartan).
+const inOrder = (list: TicketType[], ids: number[]) =>
+  ids.map((id) => list.find((t) => t.id === id)).filter((t) => t !== undefined)
+
 // Tipos de ticket del servidor: lista, orden, alta, edición y borrado.
 export function TicketTypes({ guildId }: { guildId: string }) {
   const queryClient = useQueryClient()
   const queryKey = ticketTypesQuery(guildId).queryKey
-  const { data: types, isPending, isError } = useQuery(ticketTypesQuery(guildId))
+  const { data: fetched, isError } = useQuery(ticketTypesQuery(guildId))
+  // Orden recién soltado, mientras se guarda. El estado de React se actualiza en el mismo
+  // lote que el fin del arrastre; la caché de la consulta avisa un instante después y, en ese
+  // hueco, la fila soltada se veía un momento en el sitio viejo.
+  const [pendingOrder, setPendingOrder] = useState<number[] | null>(null)
+  const types = fetched && pendingOrder ? inOrder(fetched, pendingOrder) : fetched
   const { config } = useSetup()
 
   // null: ningún diálogo abierto; 'new': crear; un tipo: editarlo o borrarlo.
@@ -40,25 +67,31 @@ export function TicketTypes({ guildId }: { guildId: string }) {
 
   const reorder = useMutation({
     mutationFn: (ids: number[]) => reorderTicketTypes(guildId, ids),
-    // Se reordena al instante en pantalla; si falla, se vuelve a pedir el orden real.
-    onMutate: (ids) => {
-      queryClient.setQueryData<TicketType[]>(queryKey, (old) =>
-        old ? ids.map((id) => old.find((t) => t.id === id)).filter((t) => t !== undefined) : old,
-      )
-    },
+    onSuccess: (_, ids) =>
+      queryClient.setQueryData<TicketType[]>(queryKey, (old) => old && inOrder(old, ids)),
+    // Si falla, se vuelve a pedir el orden real.
     onError: () => {
       toast('No se pudo cambiar el orden', 'error')
       void queryClient.invalidateQueries({ queryKey })
     },
+    onSettled: () => setPendingOrder(null),
   })
 
-  function move(index: number, by: -1 | 1) {
-    if (!types) return
+  // El arrastre empieza tras mover 6 px, para que un clic normal no lo active.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!types || !over || active.id === over.id) return
     const ids = types.map((t) => t.id)
-    const target = index + by
-    if (target < 0 || target >= ids.length) return
-    ;[ids[index], ids[target]] = [ids[target], ids[index]]
-    reorder.mutate(ids)
+    const from = ids.indexOf(Number(active.id))
+    const to = ids.indexOf(Number(over.id))
+    if (from < 0 || to < 0) return
+    const next = arrayMove(ids, from, to)
+    setPendingOrder(next)
+    reorder.mutate(next)
   }
 
   const nameOf = (list: { id: string; name: string }[], id: string) =>
@@ -82,77 +115,76 @@ export function TicketTypes({ guildId }: { guildId: string }) {
         </Button>
       </div>
 
-      {isPending ? (
-        <div className="skeleton-stack">
-          <Skeleton height={56} />
-          <Skeleton height={56} />
-        </div>
-      ) : isError ? (
-        <p className="error">No se pudieron cargar los tipos.</p>
+      {!types ? (
+        isError ? (
+          <p className="error">No se pudieron cargar los tipos.</p>
+        ) : (
+          <div className="skeleton-stack">
+            <Skeleton height={56} />
+            <Skeleton height={56} />
+          </div>
+        )
       ) : (
-        <ul className="type-list">
-          {types.map((t, i) => {
-            const category = nameOf(
-              config.categories,
-              t.categoryId || config.settings?.categoryId || '',
-            )
-            const role = nameOf(config.roles, t.staffRoleId || config.settings?.staffRoleId || '')
-            return (
-              <li key={t.id} className="type-row">
-                <span className="type-emoji" aria-hidden="true">
-                  {t.emoji || '🎫'}
-                </span>
-                <div className="type-main">
-                  <strong>{t.name}</strong>
-                  {t.description && <span className="type-desc">{t.description}</span>}
-                  {(category || role || t.questions.length > 0 || t.aiEnabled) && (
-                    <span className="type-chips">
-                      {category && <span className="chip">{category}</span>}
-                      {role && <span className="chip">@{role}</span>}
-                      {t.aiEnabled && <span className="chip">Atiende la IA</span>}
-                      {t.questions.length > 0 && (
-                        <span className="chip">
-                          {t.questions.length} {t.questions.length === 1 ? 'pregunta' : 'preguntas'}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={types.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+            <ul className="type-list">
+              {types.map((t) => {
+                const category = nameOf(
+                  config.categories,
+                  t.categoryId || config.settings?.categoryId || '',
+                )
+                const role = nameOf(
+                  config.roles,
+                  t.staffRoleId || config.settings?.staffRoleId || '',
+                )
+                return (
+                  <SortableRow key={t.id} id={t.id} name={t.name}>
+                    <span className="type-emoji" aria-hidden="true">
+                      {t.emoji || '🎫'}
+                    </span>
+                    <div className="type-main">
+                      <strong>{t.name}</strong>
+                      {t.description && <span className="type-desc">{t.description}</span>}
+                      {(category || role || t.questions.length > 0 || t.aiEnabled) && (
+                        <span className="type-chips">
+                          {category && <span className="chip">{category}</span>}
+                          {role && <span className="chip">@{role}</span>}
+                          {t.aiEnabled && <span className="chip">Atiende la IA</span>}
+                          {t.questions.length > 0 && (
+                            <span className="chip">
+                              {t.questions.length}{' '}
+                              {t.questions.length === 1 ? 'pregunta' : 'preguntas'}
+                            </span>
+                          )}
                         </span>
                       )}
-                    </span>
-                  )}
-                </div>
-                <div className="type-actions">
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={`Subir ${t.name}`}
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={`Bajar ${t.name}`}
-                    onClick={() => move(i, 1)}
-                    disabled={i === types.length - 1}
-                  >
-                    ↓
-                  </button>
-                  <Button variant="outline" onClick={() => setEditing(t)}>
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setRemoving(t)}
-                    disabled={types.length <= 1}
-                    title={types.length <= 1 ? 'El servidor necesita al menos un tipo' : undefined}
-                  >
-                    Eliminar
-                  </Button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                    </div>
+                    <div className="type-actions">
+                      <Button variant="outline" onClick={() => setEditing(t)}>
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setRemoving(t)}
+                        disabled={types.length <= 1}
+                        title={
+                          types.length <= 1 ? 'El servidor necesita al menos un tipo' : undefined
+                        }
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
+                  </SortableRow>
+                )
+              })}
+            </ul>
+          </SortableContext>
+        </DndContext>
       )}
 
       <TypeDialog
@@ -163,6 +195,54 @@ export function TicketTypes({ guildId }: { guildId: string }) {
       />
       <RemoveDialog guildId={guildId} type={removing} onClose={() => setRemoving(null)} />
     </section>
+  )
+}
+
+// Fila de la lista que se puede arrastrar por su asa (también con teclado: espacio y flechas).
+function SortableRow({ id, name, children }: { id: number; name: string; children: ReactNode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isSorting,
+  } = useSortable({
+    id,
+    // Sin animar el cambio de sitio al soltar: la fila ya está donde toca.
+    animateLayoutChanges: () => false,
+  })
+  return (
+    <li
+      ref={setNodeRef}
+      className={isDragging ? 'type-row dragging' : 'type-row'}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        // La transición solo mientras se arrastra: al soltar, la fila no debe animarse.
+        transition: isSorting ? transition : undefined,
+      }}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        className="drag-handle"
+        aria-label={`Reordenar ${name}`}
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+          <circle cx="4" cy="3" r="1.2" />
+          <circle cx="10" cy="3" r="1.2" />
+          <circle cx="4" cy="7" r="1.2" />
+          <circle cx="10" cy="7" r="1.2" />
+          <circle cx="4" cy="11" r="1.2" />
+          <circle cx="10" cy="11" r="1.2" />
+        </svg>
+      </button>
+      {children}
+    </li>
   )
 }
 
