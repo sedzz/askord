@@ -97,6 +97,14 @@ export function GuildSubnav({ guildId, guild }: Props) {
             >
               Tickets
             </Link>
+            <Link
+              to="/guilds/$guildId/settings/ai"
+              params={{ guildId }}
+              className="subnav-link"
+              activeProps={{ className: 'subnav-link active' }}
+            >
+              Asistente de IA
+            </Link>
           </div>
         )}
       </div>

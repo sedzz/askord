@@ -1,0 +1,44 @@
+.ai-table-wrap {
+  max-width: 880px;
+  margin-top: 24px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ai-table th,
+.ai-table td {
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.ai-table th {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+  background: rgb(255 255 255 / 3%);
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-table td {
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.ai-table-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* El formulario dentro de un diálogo: sin el hueco ni el ancho máximo de la página. */
+.ai-dialog-form {
+  max-width: none;
+  margin-top: 0;
+}

@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
+import { failure, jsonHeaders as json } from './api'
 
 // Pregunta del formulario que se muestra al abrir un ticket de un tipo.
 export type Question = { label: string; required: boolean; long: boolean }
@@ -33,16 +34,6 @@ export const ticketTypesQuery = (guildId: string) =>
   })
 
 // Los errores 4xx traen un texto pensado para mostrarse; los demás, un mensaje genérico.
-async function failure(res: Response): Promise<Error> {
-  if (res.status >= 400 && res.status < 500) {
-    const text = (await res.text()).trim()
-    if (text) return new Error(text.charAt(0).toUpperCase() + text.slice(1))
-  }
-  return new Error('Algo salió mal. Inténtalo de nuevo.')
-}
-
-const json = { 'Content-Type': 'application/json' }
-
 export async function createTicketType(
   guildId: string,
   input: TicketTypeInput,
