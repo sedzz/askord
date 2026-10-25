@@ -44,12 +44,10 @@ export function AiAlerts({ guildId, connection }: Props) {
     <section className="settings-section">
       <h2>Avisos al staff</h2>
       <p>
-        Cuando el asistente pasa un ticket a una persona, el aviso con el motivo va a este canal. El
-        usuario solo ve un mensaje neutro en su ticket. Sin canal, se menciona al rol en el ticket,
-        sin el motivo.
+        Cuando el asistente pasa un ticket a una persona, el aviso con el motivo va a este canal.
       </p>
 
-      <div className="form ai-behavior-form">
+      <div className="form">
         <SelectField
           label="Canal de avisos"
           help="Elige un canal que solo vea el staff, o deja que el bot cree uno privado."

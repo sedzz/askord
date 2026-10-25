@@ -51,6 +51,17 @@ export function GuildSubnav({ guildId, guild }: Props) {
         </Icon>
         Transcripciones
       </Link>
+      <Link
+        to="/guilds/$guildId/ai"
+        params={{ guildId }}
+        className="subnav-link"
+        activeProps={{ className: 'subnav-link active' }}
+      >
+        <Icon>
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" />
+        </Icon>
+        Asistente de IA
+      </Link>
       <div className="subnav-group">
         <button
           type="button"
@@ -96,14 +107,6 @@ export function GuildSubnav({ guildId, guild }: Props) {
               activeProps={{ className: 'subnav-link active' }}
             >
               Tickets
-            </Link>
-            <Link
-              to="/guilds/$guildId/settings/ai"
-              params={{ guildId }}
-              className="subnav-link"
-              activeProps={{ className: 'subnav-link active' }}
-            >
-              Asistente de IA
             </Link>
           </div>
         )}

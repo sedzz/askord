@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type M
 import { aiQuery, MAX_GUIDELINES, saveAiBehavior, type AiConnection } from '../lib/ai'
 import { toast } from '../lib/toast'
 import { Button } from './ui/Button'
-import { Checkbox } from './ui/Checkbox'
+import { Switch } from './ui/Switch'
 import { FormField } from './ui/FormField'
 import { Textarea } from './ui/Textarea'
 
@@ -110,13 +110,13 @@ export function AiBehavior({ guildId, connection }: Props) {
     <section className="settings-section">
       <div className="section-head">
         <h2>Comportamiento</h2>
-        <Checkbox
+        <Switch
           checked={connection.enabled}
           disabled={toggle.isPending}
           onChange={(enabled) => toggle.mutate(enabled)}
         >
           Asistente activado
-        </Checkbox>
+        </Switch>
       </div>
       {toggle.isError && <p className="error">{toggle.error.message}</p>}
       {!hasGuidelines && (

@@ -440,7 +440,7 @@ function AiSection({
     notice = (
       <>
         Aún no has conectado un proveedor de IA.{' '}
-        <Link to="/guilds/$guildId/settings/ai" params={{ guildId }}>
+        <Link to="/guilds/$guildId/ai" params={{ guildId }}>
           Conectarlo
         </Link>
       </>
@@ -449,7 +449,7 @@ function AiSection({
     notice = (
       <>
         El asistente está desactivado en este servidor.{' '}
-        <Link to="/guilds/$guildId/settings/ai" params={{ guildId }}>
+        <Link to="/guilds/$guildId/ai" params={{ guildId }}>
           Activarlo
         </Link>
       </>

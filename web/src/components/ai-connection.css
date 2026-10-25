@@ -108,3 +108,9 @@
 .form.ai-behavior-form {
   max-width: none;
 }
+
+/* En la página del asistente, los textos ocupan todo el ancho, como las pautas. */
+.ai-page p,
+.ai-page .settings-section > p {
+  max-width: none;
+}

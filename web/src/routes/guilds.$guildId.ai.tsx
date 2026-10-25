@@ -5,7 +5,7 @@ import { AiConnection, AiStatus } from '../components/AiConnection'
 import { Skeleton } from '../components/ui/Skeleton'
 import { aiQuery } from '../lib/ai'
 
-export const Route = createFileRoute('/guilds/$guildId/settings/ai')({
+export const Route = createFileRoute('/guilds/$guildId/ai')({
   component: AiSettings,
 })
 
@@ -15,7 +15,7 @@ function AiSettings() {
   const [editOpen, setEditOpen] = useState(false)
 
   return (
-    <div className="settings-page">
+    <div className="settings-page ai-page">
       <div className="section-head">
         <h1>Asistente de IA</h1>
         {data?.available && data.hasKey && (
