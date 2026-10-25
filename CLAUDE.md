@@ -1,45 +1,45 @@
 # CLAUDE.md
 
-Este archivo da orientación a Claude Code (claude.ai/code) para trabajar con el código de este repositorio.
+This file gives Claude Code (claude.ai/code) guidance for working with the code in this repository.
 
-## Resumen
+## Overview
 
-Askord es un bot de tickets para Discord más un panel web para configurarlo. Es un monorepo con un backend en Go (`backend/`, módulo `github.com/sedzz/askord`) que ejecuta el bot de Discord **y** la API HTTP en un solo proceso, y una SPA en React (`web/`). Los textos de cara al usuario, los comentarios y la documentación están en español; mantén esa convención.
+Askord is a Discord ticket bot plus a web dashboard to configure it. It is a monorepo with a Go backend (`backend/`, module `github.com/sedzz/askord`) that runs the Discord bot **and** the HTTP API in a single process, and a React SPA (`web/`). Documentation is written in English. The user-facing texts (bot and dashboard) and the code comments are currently in Spanish; keep that convention until they are translated.
 
-## Comandos
+## Commands
 
-Postgres (imagen pgvector) con Docker; copia `.env.example` a `.env` en la raíz del repo y completa las credenciales de Discord (`godotenv` carga `../.env` o `.env`):
+Postgres (pgvector image) with Docker; copy `.env.example` to `.env` in the repo root and fill in the Discord credentials (`godotenv` loads `../.env` or `.env`):
 
 ```bash
 docker compose up -d
 ```
 
-En macOS con Apple silicon se puede usar Apple `container` en vez de Docker: `scripts/db-mac.sh` (idempotente) levanta el mismo Postgres. En Windows sigue siendo `docker compose`.
+On macOS with Apple silicon you can use Apple `container` instead of Docker: `scripts/db-mac.sh` (idempotent) starts the same Postgres. On Windows it is still `docker compose`.
 
-Backend (ejecutar desde `backend/`):
+Backend (run from `backend/`):
 
 ```bash
-go run ./cmd/api                          # API en :8080 + bot de Discord
+go run ./cmd/api                          # API on :8080 + Discord bot
 go test ./...
-go test ./internal/bot -run TestName      # un solo test
+go test ./internal/bot -run TestName      # a single test
 ```
 
-Frontend (ejecutar desde `web/`, usa pnpm):
+Frontend (run from `web/`, uses pnpm):
 
 ```bash
-pnpm dev      # Vite en :5173, con proxy de /api y /auth hacia :8080
+pnpm dev      # Vite on :5173, proxying /api and /auth to :8080
 pnpm build    # tsc -b && vite build
 pnpm lint     # oxlint
 ```
 
-Las migraciones son SQL en formato goose en `backend/db/migrations/` (`-- +goose Up`) y van embebidas en el binario (`backend/db/embed.go`): la API las aplica sola al arrancar (`store.Migrate`, con candado de Postgres por si hay varias copias). Las nuevas llevan el siguiente número secuencial. Los tests con base de datos (`internal/store`) usan `TEST_DATABASE_URL`, una base vacía distinta de la de desarrollo; sin ella se omiten.
+Migrations are goose-format SQL in `backend/db/migrations/` (`-- +goose Up`) and are embedded in the binary (`backend/db/embed.go`): the API applies them on startup (`store.Migrate`, with a Postgres lock in case several copies run). New ones take the next sequential number. Database tests (`internal/store`) use `TEST_DATABASE_URL`, an empty database different from the development one; without it they are skipped.
 
-## Arquitectura
+## Architecture
 
-- `backend/cmd/api/main.go` conecta todo: `store` (pool de pgx) → `bot` (discordgo; intents `Guilds`, `GuildMessages` y el privilegiado `MessageContent`, este último solo para el asistente de IA) → handlers de `auth` y `dashboard` sobre un router chi. Rutas públicas: `/healthz`, `/auth/*`; todo lo que cuelga de `/api` pasa por `auth.Require` (cookie de sesión, login con OAuth de Discord).
-- `internal/store` es el único paquete que habla con Postgres; los demás llaman a sus métodos.
-- `internal/ai` conecta con LLMs compatibles con la API de OpenAI: la URL y la API key las pone el admin de cada servidor (`/api/guilds/{id}/ai`). La key se guarda cifrada con AES-GCM (`AI_ENCRYPTION_KEY`; sin ella la IA queda desactivada) y no se devuelve nunca. El cliente bloquea direcciones locales y privadas (SSRF) salvo con `AI_ALLOW_PRIVATE_URLS=true`. Además guarda el comportamiento: interruptor general y pautas del servidor (`ai_settings.enabled/guidelines`, `PUT .../ai/behavior`) y, por tipo de ticket, `ai_enabled`, `ai_instructions` y `ai_escalation`. Los textos se normalizan con `ai.CleanText` y tienen límites de longitud (`ai.Max*`). `ai.Client.Chat` llama al modelo (con la herramienta `escalar_a_staff`; los fallos son `*ai.Error` con un `Kind`) y `ai.BuildMessages` monta el prompt: reglas fijas + textos del admin en el mensaje de sistema, y todo lo que escriben los usuarios (formulario incluido) siempre como mensajes de usuario. En cada ticket, `tickets.ai_state` (`active`, `escalated` o `paused`) y `ai_replies` llevan el estado del asistente: `store.ClaimAIReply` reserva una respuesta de forma atómica (con tope) y `store.SetAIState` lo saca de `active` una sola vez. El asistente vive en `internal/bot/assistant.go` (se activa con `Bot.EnableAI`): responde a los mensajes de los tickets cuyo tipo tiene IA, espera ~3 s tras el último mensaje, no menciona a nadie, y pasa el ticket al staff (herramienta `escalar_a_staff`, tope de `ai.MaxReplies` o fallo del proveedor). El aviso con el motivo va al canal privado de avisos (`ai_settings.alerts_channel_id`, que el bot puede crear con `CreateStaffChannel`); el usuario solo ve un mensaje neutro en su ticket, y sin canal se menciona al rol en el ticket sin motivo. Se pausa si escribe alguien del staff que no abrió el ticket, y descarta su respuesta si el ticket cambió mientras el modelo pensaba.
-- Los handlers HTTP de `internal/dashboard` tienen tanto `store` como `bot`: la configuración vive en la base de datos, pero las acciones que tocan Discord (crear categoría/rol/canal, publicar el panel de tickets, datos del servidor cacheados ~1 min) pasan por `bot.Bot`.
-- `internal/bot` gestiona los eventos del gateway y las interacciones de Discord: panel con un botón por tipo de ticket, formularios (modales) por tipo, canales/hilos de ticket, cierre y transcripciones (`transcript.go`). El nombre y la configuración del tipo se copian al ticket (migración 00010), así que editar un tipo no reescribe el historial.
-- Las transcripciones (`ticket_messages`) y las respuestas de formulario (`tickets.answers`) se exportan con `internal/dashboard/export.go`. La retención ya está implementada (las notas de diseño están en `docs/`, que no se versiona): `internal/cleanup` purga el contenido 90 días después de `closed_at` (al arrancar y cada 6 h, no con `pg_cron`) y hay un botón de borrado manual. `tickets.content_purged_at` marca los tickets purgados. Las filas de tickets se conservan para que las estadísticas del panel no cambien.
-- Frontend: Vite + React 19, TanStack Router (rutas basadas en archivos en `web/src/routes`; `routeTree.gen.ts` es generado, no lo edites) y TanStack Query. Cada archivo `web/src/lib/*.ts` junta un tipo de TypeScript con sus `queryOptions`/fetch para un recurso de la API. Las primitivas reutilizables están en `components/ui/`, cada una con su propio `.css`; `components/discord/` imita la interfaz de Discord para las vistas previas de paneles, tickets y formularios.
+- `backend/cmd/api/main.go` wires everything together: `store` (pgx pool) → `bot` (discordgo; intents `Guilds`, `GuildMessages` and the privileged `MessageContent`, the latter only for the AI assistant) → `auth` and `dashboard` handlers on a chi router. Public routes: `/healthz`, `/auth/*`; everything under `/api` goes through `auth.Require` (session cookie, Discord OAuth login).
+- `internal/store` is the only package that talks to Postgres; the others call its methods.
+- `internal/ai` connects to LLMs compatible with the OpenAI API: the URL and API key are set by each server's admin (`/api/guilds/{id}/ai`). The key is stored encrypted with AES-GCM (`AI_ENCRYPTION_KEY`; without it the AI is disabled) and is never returned. The client blocks local and private addresses (SSRF) unless `AI_ALLOW_PRIVATE_URLS=true`. It also stores the behavior: a global switch and the server guidelines (`ai_settings.enabled/guidelines`, `PUT .../ai/behavior`) and, per ticket type, `ai_enabled`, `ai_instructions` and `ai_escalation`. Texts are normalized with `ai.CleanText` and have length limits (`ai.Max*`). `ai.Client.Chat` calls the model (with the `escalar_a_staff` tool; failures are `*ai.Error` with a `Kind`) and `ai.BuildMessages` builds the prompt: fixed rules + the admin's texts in the system message, and everything users write (form included) always as user messages. In each ticket, `tickets.ai_state` (`active`, `escalated` or `paused`) and `ai_replies` hold the assistant's state: `store.ClaimAIReply` reserves a reply atomically (with a cap) and `store.SetAIState` takes it out of `active` exactly once. The assistant lives in `internal/bot/assistant.go` (enabled with `Bot.EnableAI`): it answers messages in tickets whose type has AI, waits ~3 s after the last message, mentions nobody, and hands the ticket to the staff (`escalar_a_staff` tool, the `ai.MaxReplies` cap or a provider failure). The notice with the reason goes to the private alerts channel (`ai_settings.alerts_channel_id`, which the bot can create with `CreateStaffChannel`); the user only sees a neutral message in their ticket, and without a channel the role is mentioned in the ticket with no reason. It pauses if a staff member who did not open the ticket writes, and drops its reply if the ticket changed while the model was thinking.
+- The HTTP handlers in `internal/dashboard` have both `store` and `bot`: the configuration lives in the database, but the actions that touch Discord (creating a category/role/channel, publishing the ticket panel, guild data cached for ~1 min) go through `bot.Bot`.
+- `internal/bot` handles gateway events and Discord interactions: a panel with one button per ticket type, forms (modals) per type, ticket channels/threads, closing and transcripts (`transcript.go`). The type's name and configuration are copied into the ticket (migration 00010), so editing a type does not rewrite history.
+- Transcripts (`ticket_messages`) and form answers (`tickets.answers`) are exported with `internal/dashboard/export.go`. Retention is implemented: `internal/cleanup` purges the content 90 days after `closed_at` (on startup and every 6 h, not with `pg_cron`) and there is a manual delete button. `tickets.content_purged_at` marks purged tickets. Ticket rows are kept so the dashboard statistics do not change.
+- Frontend: Vite + React 19, TanStack Router (file-based routes in `web/src/routes`; `routeTree.gen.ts` is generated, do not edit it) and TanStack Query. Each `web/src/lib/*.ts` file bundles a TypeScript type with its `queryOptions`/fetch for an API resource. Components are grouped by feature in `web/src/components/` (`ai/`, `layout/`, `tickets/`, `transcripts/`, `settings/`, `dashboard/`). Reusable primitives are in `components/ui/`, each with its own `.css`; `components/discord/` imitates the Discord interface for the previews of panels, tickets and forms.

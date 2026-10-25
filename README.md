@@ -1,60 +1,60 @@
 # Askord
 
-Bot de tickets para Discord con un panel web para configurarlo.
+A ticket bot for Discord with a web dashboard to configure it.
 
-## Qué hace
+## Features
 
-- **Panel de tickets** en Discord con un botón por tipo de ticket.
-- **Tipos de ticket** configurables: nombre, emoji, categoría, rol de staff y un formulario propio con preguntas. Se reordenan arrastrando.
-- **Transcripciones** de cada ticket al cerrarlo, con exportación. El contenido se purga solo 90 días después del cierre, y también se puede borrar a mano.
-- **Asistente de IA** opcional: cada servidor conecta su propio LLM (cualquier proveedor compatible con la API de OpenAI) y define pautas generales y por tipo de ticket. El asistente responde en los tickets y avisa al staff cuando no puede resolverlo.
-- **Panel web** con login de Discord, estadísticas y configuración de cada servidor.
+- **Ticket panel** in Discord with one button per ticket type.
+- **Configurable ticket types**: name, emoji, category, staff role and your own form with questions. Reorder them by dragging.
+- **Transcripts** of every ticket when it is closed, with export. The content is purged automatically 90 days after closing, and it can also be deleted by hand.
+- **Optional AI assistant**: each server connects its own LLM (any provider compatible with the OpenAI API) and sets general guidelines and per-ticket-type instructions. The assistant answers in tickets and notifies the staff when it cannot solve the problem.
+- **Web dashboard** with Discord login, statistics and per-server settings.
 
-## Cómo está hecho
+## How it is built
 
-Monorepo con dos partes:
+A monorepo with two parts:
 
-- `backend/`: Go. Un solo proceso ejecuta el bot de Discord y la API HTTP. Usa Postgres con migraciones embebidas que se aplican al arrancar.
-- `web/`: SPA en React con Vite, TanStack Router y TanStack Query.
+- `backend/`: Go. A single process runs the Discord bot and the HTTP API. It uses Postgres, with embedded migrations that are applied on startup.
+- `web/`: a React SPA built with Vite, TanStack Router and TanStack Query.
 
-## Requisitos
+## Requirements
 
-- Go 1.26 o superior
-- Node.js y [pnpm](https://pnpm.io)
-- Docker (para Postgres)
-- Una aplicación de Discord con bot, creada en el [Developer Portal](https://discord.com/developers/applications)
+- Go 1.26 or later
+- Node.js and [pnpm](https://pnpm.io)
+- Docker (for Postgres)
+- A Discord application with a bot, created in the [Developer Portal](https://discord.com/developers/applications)
 
-## Puesta en marcha
+## Getting started
 
-### 1. Aplicación de Discord
+### 1. Discord application
 
-En el Developer Portal:
+In the Developer Portal:
 
-1. En **OAuth2**, añade la redirección `http://localhost:8080/auth/callback`.
-2. En **Bot**, activa el intent privilegiado **Message Content** (solo lo usa el asistente de IA).
-3. Copia el client ID, el client secret y el token del bot.
+1. Under **OAuth2**, add the redirect `http://localhost:8080/auth/callback`.
+2. Under **Bot**, enable the privileged **Message Content** intent (only the AI assistant uses it).
+3. Copy the client ID, the client secret and the bot token.
 
-### 2. Configuración
+### 2. Configuration
 
-Copia `.env.example` a `.env` en la raíz del repo y rellena las credenciales de Discord:
+Copy `.env.example` to `.env` in the repo root and fill in the Discord credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-Para activar el asistente de IA, genera una clave de cifrado y ponla en `AI_ENCRYPTION_KEY`. Sin ella la función queda desactivada:
+To enable the AI assistant, generate an encryption key and put it in `AI_ENCRYPTION_KEY`. Without it the feature stays disabled:
 
 ```bash
 openssl rand -base64 32
 ```
 
-### 3. Base de datos
+### 3. Database
 
 ```bash
 docker compose up -d
 ```
 
-En macOS con Apple silicon también se puede usar `scripts/db-mac.sh` con Apple `container`.
+On macOS with Apple silicon you can also use `scripts/db-mac.sh`, which relies on Apple `container`.
 
 ### 4. Backend
 
@@ -63,7 +63,7 @@ cd backend
 go run ./cmd/api
 ```
 
-La API escucha en `:8080`.
+The API listens on `:8080`.
 
 ### 5. Frontend
 
@@ -73,7 +73,7 @@ pnpm install
 pnpm dev
 ```
 
-El panel queda en <http://localhost:5173>, con proxy de `/api` y `/auth` hacia el backend.
+The dashboard is served at <http://localhost:5173>, with `/api` and `/auth` proxied to the backend.
 
 ## Tests
 
@@ -82,15 +82,15 @@ cd backend
 go test ./...
 ```
 
-Los tests de `internal/store` necesitan `TEST_DATABASE_URL`, apuntando a una base vacía distinta de la de desarrollo. Sin ella se omiten.
+The tests in `internal/store` need `TEST_DATABASE_URL`, pointing to an empty database that is different from the development one. Without it they are skipped.
 
-## Producción
+## Production
 
-- Pon `COOKIE_SECURE=true` y sirve todo por HTTPS.
-- Ajusta `DISCORD_REDIRECT_URL` y `FRONTEND_URL` a tus dominios.
-- Mantén `AI_ALLOW_PRIVATE_URLS=false`: con `true` el asistente podría conectarse a direcciones de tu red interna.
-- Si pierdes o cambias `AI_ENCRYPTION_KEY`, los admins tendrán que volver a introducir las API keys de sus LLM.
+- Set `COOKIE_SECURE=true` and serve everything over HTTPS.
+- Set `DISCORD_REDIRECT_URL` and `FRONTEND_URL` to your own domains.
+- Keep `AI_ALLOW_PRIVATE_URLS=false`: with `true` the assistant could connect to addresses on your internal network.
+- If you lose or change `AI_ENCRYPTION_KEY`, admins will have to enter their LLM API keys again.
 
-## Licencia
+## License
 
-[GNU AGPL-3.0](LICENSE). Si ofreces una versión modificada de Askord como servicio, debes publicar tus cambios bajo la misma licencia.
+[GNU AGPL-3.0](LICENSE). If you offer a modified version of Askord as a service, you must publish your changes under the same license.

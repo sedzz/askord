@@ -1,25 +1,25 @@
-# Política de seguridad
+# Security policy
 
-## Cómo informar de una vulnerabilidad
+## How to report a vulnerability
 
-Si encuentras un fallo de seguridad en Askord, **no abras una issue pública**. Usa el aviso privado de GitHub: pestaña **Security** del repositorio → **Report a vulnerability**.
+If you find a security flaw in Askord, **do not open a public issue**. Use GitHub's private reporting: the repository's **Security** tab → **Report a vulnerability**.
 
-Incluye, si puedes:
+If you can, include:
 
-- Qué has encontrado y qué impacto tiene.
-- Los pasos para reproducirlo.
-- La versión o el commit en el que lo viste.
+- What you found and what its impact is.
+- Steps to reproduce it.
+- The version or commit where you saw it.
 
-Intentaré responderte en unos días. Pido que no se publique el fallo hasta que haya una corrección.
+I will try to answer within a few days. Please do not disclose the flaw publicly until a fix is available.
 
-## Qué se considera en alcance
+## What is in scope
 
-- Acceso a datos de otros servidores o tickets sin permiso.
-- Fallos de autenticación o de sesión en el panel.
-- Fugas de las API keys de los LLM, que se guardan cifradas, o de los tokens de Discord.
-- Saltarse la protección contra SSRF del cliente del LLM.
-- Inyección (SQL, XSS) en la API o en el panel.
+- Access to other servers' data or tickets without permission.
+- Authentication or session flaws in the dashboard.
+- Leaks of the LLM API keys (stored encrypted) or of Discord tokens.
+- Bypassing the SSRF protection of the LLM client.
+- Injection (SQL, XSS) in the API or the dashboard.
 
-## Despliegue
+## Deployment
 
-Si alojas Askord tú mismo, mantén `COOKIE_SECURE=true` con HTTPS, `AI_ALLOW_PRIVATE_URLS=false` y guarda `.env` y `AI_ENCRYPTION_KEY` fuera del repositorio.
+If you host Askord yourself, keep `COOKIE_SECURE=true` behind HTTPS and `AI_ALLOW_PRIVATE_URLS=false`, and keep `.env` and `AI_ENCRYPTION_KEY` out of the repository.
