@@ -19,6 +19,8 @@ type Bot struct {
 	store   *store.Store
 	// Datos del servidor que vienen de Discord y se guardan un minuto (guildID -> cachedGuild).
 	guildCache sync.Map
+	// Asistente de IA de los tickets; nil si no está activado (ver EnableAI).
+	ai *assistant
 }
 
 func New(token string, s *store.Store) (*Bot, error) {
@@ -26,7 +28,8 @@ func New(token string, s *store.Store) (*Bot, error) {
 	if err != nil {
 		return nil, err
 	}
-	session.Identify.Intents = discordgo.IntentsGuilds
+	// Los mensajes (y su texto, un intent privilegiado) solo se usan para el asistente de IA.
+	session.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages | discordgo.IntentMessageContent
 
 	b := &Bot{session: session, store: s}
 	session.AddHandler(b.onReady)
@@ -35,6 +38,7 @@ func New(token string, s *store.Store) (*Bot, error) {
 	session.AddHandler(b.onGuildDelete)
 	session.AddHandler(b.onInteraction)
 	session.AddHandler(b.onChannelDelete)
+	session.AddHandler(b.onMessageCreate)
 	return b, nil
 }
 

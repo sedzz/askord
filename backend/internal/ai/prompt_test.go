@@ -177,3 +177,23 @@ func TestLimitsAreSane(t *testing.T) {
 		t.Errorf("límites incoherentes: %d %d %d", MaxReplies, MaxTurnChars, MaxContextChars)
 	}
 }
+
+func TestBuildMessagesEndsWithAUserTurn(t *testing.T) {
+	// Primera respuesta: lo último del canal es la bienvenida del bot.
+	msgs := BuildMessages(fullContext(), []Turn{{Author: "Bot", Content: "Hola, gracias por abrir un ticket.", Assistant: true}})
+	if last := msgs[len(msgs)-1]; last.Role != RoleUser || last.Content != openingNote {
+		t.Errorf("último mensaje = %+v, quería el aviso del sistema como usuario", last)
+	}
+	if msgs[len(msgs)-2].Role != RoleAssistant {
+		t.Errorf("la bienvenida debía quedar antes: %+v", msgs)
+	}
+
+	// Si el usuario habló, no hace falta nada más.
+	msgs = BuildMessages(fullContext(), []Turn{
+		{Author: "Bot", Content: "Hola", Assistant: true},
+		{Author: "Ana", Content: "no me llegó"},
+	})
+	if last := msgs[len(msgs)-1]; last.Role != RoleUser || strings.Contains(last.Content, "Aviso del sistema") {
+		t.Errorf("último mensaje = %+v", last)
+	}
+}

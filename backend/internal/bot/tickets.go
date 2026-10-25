@@ -272,6 +272,15 @@ func (b *Bot) createTicket(ctx context.Context, guildID string, user *discordgo.
 		slog.Error("enviar bienvenida", "channel", channel.ID, "err", err)
 	}
 
+	// El canal ya es de un ticket y, si el tipo tiene formulario y la IA, el asistente da la
+	// primera respuesta sin esperar a que el usuario escriba.
+	if b.ai != nil {
+		b.ai.forgetNotTicket(channel.ID)
+		if ticketType.AIEnabled && len(answers) > 0 {
+			b.ai.schedule(b, channel.ID, true)
+		}
+	}
+
 	slog.Info("ticket creado", "guild", guildID, "number", number, "user", user.ID)
 	return fmt.Sprintf("Tu ticket está listo: <#%s>", channel.ID)
 }

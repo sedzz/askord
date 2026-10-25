@@ -99,8 +99,18 @@ func BuildMessages(t TicketContext, history []Turn) []Message {
 		}
 		msgs = append(msgs, msg)
 	}
+
+	// Muchos proveedores rechazan una conversación que acaba en un mensaje del asistente. Pasa
+	// al dar la primera respuesta, cuando lo último del canal es la bienvenida del bot.
+	if msgs[len(msgs)-1].Role == RoleAssistant {
+		msgs = append(msgs, Message{Role: RoleUser, Content: openingNote})
+	}
 	return msgs
 }
+
+// openingNote es un aviso del sistema, no del usuario, para empezar a atender un ticket recién
+// abierto en el que aún no ha escrito nada.
+const openingNote = "[Aviso del sistema: el ticket acaba de abrirse y el usuario aún no ha escrito. Atiéndelo según lo que contestó en el formulario.]"
 
 func systemPrompt(t TicketContext) string {
 	var b strings.Builder

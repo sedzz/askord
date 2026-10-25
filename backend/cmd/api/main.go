@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 
+	"github.com/sedzz/askord/internal/ai"
 	"github.com/sedzz/askord/internal/auth"
 	"github.com/sedzz/askord/internal/bot"
 	"github.com/sedzz/askord/internal/cleanup"
@@ -59,6 +60,15 @@ func run() error {
 		return err
 	}
 	defer b.Close() //nolint:errcheck
+
+	// Sin AI_ENCRYPTION_KEY no hay forma de leer las API keys: el asistente queda apagado.
+	if len(cfg.AIEncryptionKey) > 0 {
+		sealer, err := ai.NewSealer(cfg.AIEncryptionKey)
+		if err != nil {
+			return err
+		}
+		b.EnableAI(sealer, ai.New(cfg.AIAllowPrivateURLs))
+	}
 
 	go cleanup.Run(ctx, st)
 
