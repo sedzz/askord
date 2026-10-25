@@ -5,7 +5,7 @@ set -euo pipefail
 
 NAME=askord-postgres
 VOLUME=pgdata
-IMAGE=pgvector/pgvector:pg17
+IMAGE=postgres:17
 
 if ! command -v container >/dev/null; then
   echo "The 'container' command was not found (https://github.com/apple/container)." >&2

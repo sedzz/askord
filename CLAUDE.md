@@ -8,7 +8,7 @@ Askord is a Discord ticket bot plus a web dashboard to configure it. It is a mon
 
 ## Commands
 
-Postgres (pgvector image) with Docker; copy `.env.example` to `.env` in the repo root and fill in the Discord credentials (`godotenv` loads `../.env` or `.env`):
+Postgres with Docker; copy `.env.example` to `.env` in the repo root and fill in the Discord credentials (`godotenv` loads `../.env` or `.env`):
 
 ```bash
 docker compose up -d
