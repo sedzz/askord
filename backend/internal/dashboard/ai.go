@@ -24,16 +24,22 @@ type aiView struct {
 	Available bool   `json:"available"`
 	BaseURL   string `json:"baseUrl"`
 	Model     string `json:"model"`
-	Enabled   bool   `json:"enabled"`
 	HasKey    bool   `json:"hasKey"`
+	// Interruptor general del asistente y pautas del servidor.
+	Enabled    bool   `json:"enabled"`
+	Guidelines string `json:"guidelines"`
 }
 
 type aiBody struct {
 	BaseURL string `json:"baseUrl"`
 	Model   string `json:"model"`
 	// Vacía: se conserva la que ya había guardada.
-	APIKey  string `json:"apiKey"`
-	Enabled bool   `json:"enabled"`
+	APIKey string `json:"apiKey"`
+}
+
+type aiBehaviorBody struct {
+	Enabled    bool   `json:"enabled"`
+	Guidelines string `json:"guidelines"`
 }
 
 // GetAI devuelve la conexión con el LLM del servidor.
@@ -54,7 +60,8 @@ func (h *Handler) GetAI(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) aiView(a *store.AISettings) aiView {
 	v := aiView{Available: h.sealer != nil}
 	if a != nil {
-		v.BaseURL, v.Model, v.Enabled, v.HasKey = a.BaseURL, a.Model, a.Enabled, len(a.KeyEnc) > 0
+		v.BaseURL, v.Model, v.HasKey = a.BaseURL, a.Model, len(a.KeyEnc) > 0
+		v.Enabled, v.Guidelines = a.Enabled, a.Guidelines
 	}
 	return v
 }
@@ -70,7 +77,7 @@ func (h *Handler) PutAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	in := store.AISettings{BaseURL: body.BaseURL, Model: body.Model, Enabled: body.Enabled}
+	in := store.AISettings{BaseURL: body.BaseURL, Model: body.Model}
 	if body.APIKey != "" {
 		enc, err := h.sealer.Seal(body.APIKey, guildID)
 		if err != nil {
@@ -96,6 +103,66 @@ func (h *Handler) PutAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, h.aiView(saved))
+}
+
+// PutAIBehavior guarda el interruptor general del asistente y las pautas del servidor. Hace
+// falta una conexión guardada: sin proveedor no hay asistente que activar.
+func (h *Handler) PutAIBehavior(w http.ResponseWriter, r *http.Request) {
+	guildID, ok := h.guildID(w, r)
+	if !ok {
+		return
+	}
+	if h.sealer == nil {
+		http.Error(w, "la IA no está disponible en este despliegue de Askord", http.StatusServiceUnavailable)
+		return
+	}
+	var body aiBehaviorBody
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+		http.Error(w, "cuerpo invalido", http.StatusBadRequest)
+		return
+	}
+	guidelines := ai.CleanText(body.Guidelines)
+	if utf8.RuneCountInString(guidelines) > ai.MaxGuidelines {
+		http.Error(w, "las pautas admiten hasta 4000 caracteres", http.StatusBadRequest)
+		return
+	}
+
+	existing, err := h.store.GetAISettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	if existing == nil || len(existing.KeyEnc) == 0 {
+		http.Error(w, "guarda antes la conexión con tu proveedor de IA", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.SaveAIBehavior(r.Context(), guildID, body.Enabled, guidelines); err != nil {
+		slog.Error("guardar comportamiento de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	saved, err := h.store.GetAISettings(r.Context(), guildID)
+	if err != nil {
+		slog.Error("leer configuracion de ia", "err", err)
+		http.Error(w, "error interno", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, h.aiView(saved))
+}
+
+// cleanTypeAI normaliza y valida los textos de IA de un tipo de ticket. Devuelve el motivo si
+// algo no es válido.
+func cleanTypeAI(instructions, escalation string) (string, string, string) {
+	instructions, escalation = ai.CleanText(instructions), ai.CleanText(escalation)
+	if utf8.RuneCountInString(instructions) > ai.MaxInstructions {
+		return "", "", "las instrucciones de la IA admiten hasta 2000 caracteres"
+	}
+	if utf8.RuneCountInString(escalation) > ai.MaxEscalation {
+		return "", "", "las reglas para pasar a una persona admiten hasta 1000 caracteres"
+	}
+	return instructions, escalation, ""
 }
 
 // DeleteAI borra la conexión, API key incluida.

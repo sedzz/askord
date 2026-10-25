@@ -10,7 +10,7 @@ import (
 )
 
 // newTestStore se conecta a la base de datos de TEST_DATABASE_URL (con las migraciones ya
-// aplicadas o por aplicar) y la deja vacía de tickets. Sin la variable, el test se omite.
+// aplicadas o por aplicar) y la deja sin tickets, tipos ni conexiones de IA. Sin la variable, el test se omite.
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
@@ -25,8 +25,10 @@ func newTestStore(t *testing.T) *Store {
 	if err := st.Migrate(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.pool.Exec(context.Background(), `DELETE FROM tickets`); err != nil {
-		t.Fatal(err)
+	for _, table := range []string{"tickets", "ticket_types", "ai_settings"} {
+		if _, err := st.pool.Exec(context.Background(), `DELETE FROM `+table); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return st
 }

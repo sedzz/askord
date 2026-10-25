@@ -96,6 +96,7 @@ func run() error {
 		r.Get("/guilds/{guildID}/ai", dashH.GetAI)
 		r.Put("/guilds/{guildID}/ai", dashH.PutAI)
 		r.Delete("/guilds/{guildID}/ai", dashH.DeleteAI)
+		r.Put("/guilds/{guildID}/ai/behavior", dashH.PutAIBehavior)
 		r.Post("/guilds/{guildID}/ai/test", dashH.TestAI)
 		r.Get("/guilds/{guildID}/transcripts", dashH.ListTranscripts)
 		r.Get("/guilds/{guildID}/transcripts/export", dashH.ExportTranscripts)

@@ -58,11 +58,12 @@ func (e *env) call(method, user, path string, body any) (int, string) {
 }
 
 type aiJSON struct {
-	Available bool   `json:"available"`
-	BaseURL   string `json:"baseUrl"`
-	Model     string `json:"model"`
-	Enabled   bool   `json:"enabled"`
-	HasKey    bool   `json:"hasKey"`
+	Available  bool   `json:"available"`
+	BaseURL    string `json:"baseUrl"`
+	Model      string `json:"model"`
+	Enabled    bool   `json:"enabled"`
+	HasKey     bool   `json:"hasKey"`
+	Guidelines string `json:"guidelines"`
 }
 
 func decodeAI(t *testing.T, body string) aiJSON {
@@ -92,14 +93,14 @@ func TestAIUnavailableWithoutEncryptionKey(t *testing.T) {
 
 func TestAISaveAndRead(t *testing.T) {
 	e := aiEnv(t)
-	put := map[string]any{"baseUrl": "http://127.0.0.1:1/v1/", "model": " mi-modelo ", "apiKey": "sk-muy-secreta", "enabled": true}
+	put := map[string]any{"baseUrl": "http://127.0.0.1:1/v1/", "model": " mi-modelo ", "apiKey": "sk-muy-secreta"}
 
 	code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai", put)
 	if code != http.StatusOK {
 		t.Fatalf("PUT = %d %s", code, body)
 	}
 	got := decodeAI(t, body)
-	if !got.Available || !got.HasKey || !got.Enabled || got.Model != "mi-modelo" || got.BaseURL != "http://127.0.0.1:1/v1" {
+	if !got.Available || !got.HasKey || got.Enabled || got.Model != "mi-modelo" || got.BaseURL != "http://127.0.0.1:1/v1" {
 		t.Errorf("respuesta = %+v", got)
 	}
 
@@ -130,9 +131,9 @@ func TestAIKeepsKeyWhenOmitted(t *testing.T) {
 	}
 
 	// Cambiar el modelo sin repetir la key la conserva.
-	second := map[string]any{"baseUrl": url, "model": "m2", "enabled": true}
+	second := map[string]any{"baseUrl": url, "model": "m2"}
 	code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai", second)
-	if got := decodeAI(t, body); code != http.StatusOK || got.Model != "m2" || !got.HasKey || !got.Enabled {
+	if got := decodeAI(t, body); code != http.StatusOK || got.Model != "m2" || !got.HasKey {
 		t.Fatalf("PUT sin key = %d %s", code, body)
 	}
 
@@ -240,7 +241,7 @@ func TestAIAccessControl(t *testing.T) {
 
 func TestAIDelete(t *testing.T) {
 	e := aiEnv(t)
-	put := map[string]any{"baseUrl": "https://api.openai.com/v1", "model": "gpt", "apiKey": "sk-1", "enabled": true}
+	put := map[string]any{"baseUrl": "https://api.openai.com/v1", "model": "gpt", "apiKey": "sk-1"}
 	e.call(http.MethodPut, "ana", "/guilds/g1/ai", put)
 
 	if code, _ := e.call(http.MethodDelete, "ana", "/guilds/g1/ai", nil); code != http.StatusNoContent {
@@ -255,5 +256,120 @@ func TestAIDelete(t *testing.T) {
 	}
 	if _, body := e.call(http.MethodGet, "ana", "/guilds/g1/ai", nil); decodeAI(t, body).HasKey {
 		t.Error("tras borrar aún hay key")
+	}
+}
+
+// connect guarda una conexión para ana en g1.
+func (e *env) connect() {
+	e.t.Helper()
+	put := map[string]any{"baseUrl": "https://api.openai.com/v1", "model": "gpt", "apiKey": "sk-1"}
+	if code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai", put); code != http.StatusOK {
+		e.t.Fatalf("PUT = %d %s", code, body)
+	}
+}
+
+func TestAIBehavior(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+
+	// Los saltos de línea de Windows, los espacios al final y los caracteres de control se limpian.
+	raw := "  # Pautas\r\n\r\n\r\n\r\nSé amable.   \r\n- No prometas reembolsos\x00  \n\n"
+	code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai/behavior", map[string]any{"enabled": true, "guidelines": raw})
+	if code != http.StatusOK {
+		t.Fatalf("PUT = %d %s", code, body)
+	}
+	got := decodeAI(t, body)
+	want := "# Pautas\n\nSé amable.\n- No prometas reembolsos"
+	if !got.Enabled || got.Guidelines != want || !got.HasKey {
+		t.Errorf("respuesta = %+v\nquería pautas %q", got, want)
+	}
+	if _, read := e.call(http.MethodGet, "ana", "/guilds/g1/ai", nil); decodeAI(t, read).Guidelines != want {
+		t.Errorf("GET no devuelve las pautas guardadas: %s", read)
+	}
+
+	// Cambiar la conexión después no toca el interruptor ni las pautas.
+	put := map[string]any{"baseUrl": "https://openrouter.ai/api/v1", "model": "otro"}
+	code, body = e.call(http.MethodPut, "ana", "/guilds/g1/ai", put)
+	if got := decodeAI(t, body); code != http.StatusOK || !got.Enabled || got.Guidelines != want || got.Model != "otro" {
+		t.Errorf("PUT conexión = %d %+v; debía conservar interruptor y pautas", code, got)
+	}
+
+	// Y se pueden apagar y vaciar.
+	_, body = e.call(http.MethodPut, "ana", "/guilds/g1/ai/behavior", map[string]any{"enabled": false, "guidelines": ""})
+	if got := decodeAI(t, body); got.Enabled || got.Guidelines != "" {
+		t.Errorf("tras apagar = %+v", got)
+	}
+}
+
+func TestAIBehaviorNeedsConnection(t *testing.T) {
+	e := aiEnv(t)
+	code, body := e.call(http.MethodPut, "ana", "/guilds/g1/ai/behavior", map[string]any{"enabled": true, "guidelines": "hola"})
+	if code != http.StatusBadRequest || !strings.Contains(body, "conexión") {
+		t.Errorf("sin conexión: %d %s", code, body)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s != nil {
+		t.Error("se creó una fila sin conexión")
+	}
+
+	// Sin cifrado configurado, ni siquiera se intenta.
+	if code, _ := newEnv(t).call(http.MethodPut, "ana", "/guilds/g1/ai/behavior", map[string]any{}); code != http.StatusServiceUnavailable {
+		t.Errorf("sin cifrado = %d, quería 503", code)
+	}
+}
+
+func TestAIBehaviorLimits(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+	put := func(guidelines string) int {
+		code, _ := e.call(http.MethodPut, "ana", "/guilds/g1/ai/behavior", map[string]any{"guidelines": guidelines})
+		return code
+	}
+	if code := put(strings.Repeat("a", 4000)); code != http.StatusOK {
+		t.Errorf("4000 caracteres = %d, quería 200", code)
+	}
+	if code := put(strings.Repeat("ñ", 4000)); code != http.StatusOK {
+		t.Errorf("4000 ñ (8000 bytes) = %d, el límite es en caracteres y no en bytes", code)
+	}
+	if code := put(strings.Repeat("a", 4001)); code != http.StatusBadRequest {
+		t.Errorf("4001 caracteres = %d, quería 400", code)
+	}
+	// Los espacios que se van a limpiar no cuentan para el límite.
+	if code := put(strings.Repeat("a", 4000) + strings.Repeat(" \n", 50)); code != http.StatusOK {
+		t.Errorf("4000 caracteres más espacios finales = %d, quería 200", code)
+	}
+}
+
+func TestAIBehaviorAccessControl(t *testing.T) {
+	e := aiEnv(t)
+	e.connect()
+	body := map[string]any{"enabled": true, "guidelines": "intruso"}
+
+	if code, _ := e.call(http.MethodPut, "", "/guilds/g1/ai/behavior", body); code != http.StatusUnauthorized {
+		t.Errorf("sin sesión = %d, quería 401", code)
+	}
+	if code, _ := e.call(http.MethodPut, "luis", "/guilds/g1/ai/behavior", body); code != http.StatusNotFound {
+		t.Errorf("otro servidor = %d, quería 404", code)
+	}
+	if s, _ := e.st.GetAISettings(context.Background(), "g1"); s == nil || s.Enabled || s.Guidelines != "" {
+		t.Errorf("una petición rechazada cambió el comportamiento: %+v", s)
+	}
+}
+
+func TestCleanTypeAI(t *testing.T) {
+	instructions, escalation, problem := cleanTypeAI("  Ayuda con pedidos.  \r\n", "\nSi hay enfado\r\n")
+	if problem != "" || instructions != "Ayuda con pedidos." || escalation != "Si hay enfado" {
+		t.Errorf("válido: %q %q %q", instructions, escalation, problem)
+	}
+	if _, _, problem := cleanTypeAI("", ""); problem != "" {
+		t.Errorf("vacíos deben ser válidos: %q", problem)
+	}
+	if _, _, problem := cleanTypeAI(strings.Repeat("a", 2001), ""); !strings.Contains(problem, "2000") {
+		t.Errorf("instrucciones largas: %q", problem)
+	}
+	if _, _, problem := cleanTypeAI("", strings.Repeat("a", 1001)); !strings.Contains(problem, "1000") {
+		t.Errorf("reglas largas: %q", problem)
+	}
+	if _, _, problem := cleanTypeAI(strings.Repeat("a", 2000), strings.Repeat("ñ", 1000)); problem != "" {
+		t.Errorf("justo en el límite: %q", problem)
 	}
 }

@@ -34,6 +34,10 @@ type typeBody struct {
 	CategoryID  string           `json:"categoryId"`
 	StaffRoleID string           `json:"staffRoleId"`
 	Questions   []store.Question `json:"questions"`
+
+	AIEnabled      bool   `json:"aiEnabled"`
+	AIInstructions string `json:"aiInstructions"`
+	AIEscalation   string `json:"aiEscalation"`
 }
 
 // ListTicketTypes devuelve los tipos del servidor, en su orden.
@@ -119,7 +123,7 @@ func (h *Handler) ReorderTicketTypes(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		IDs []int64 `json:"ids"`
 	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<12)).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
 		http.Error(w, "cuerpo invalido", http.StatusBadRequest)
 		return
 	}
@@ -178,6 +182,13 @@ func (h *Handler) readTypeInput(w http.ResponseWriter, r *http.Request, guildID 
 		return store.TicketTypeInput{}, false
 	}
 	in.Questions = questions
+
+	instructions, escalation, problem := cleanTypeAI(body.AIInstructions, body.AIEscalation)
+	if problem != "" {
+		http.Error(w, problem, http.StatusBadRequest)
+		return store.TicketTypeInput{}, false
+	}
+	in.AIEnabled, in.AIInstructions, in.AIEscalation = body.AIEnabled, instructions, escalation
 
 	fail := func(msg string) (store.TicketTypeInput, bool) {
 		http.Error(w, msg, http.StatusBadRequest)
