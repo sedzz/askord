@@ -169,7 +169,7 @@ export function TicketTypes({ guildId }: { guildId: string }) {
                         Editar
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="danger"
                         onClick={() => setRemoving(t)}
                         disabled={types.length <= 1}
                         title={
